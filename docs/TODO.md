@@ -35,6 +35,12 @@ No active tasks yet.
 
 ## 已完成
 
+- [x] `@agent` Create public GitHub repository
+  - Module: repository setup
+  - Goal: create a public remote repository for the project.
+  - Acceptance: `origin` points to `https://github.com/The0xKa1/DataVisProject` and `main` is pushed.
+  - Completed: 2026-05-11.
+
 - [x] `@agent` Initialize collaboration workspace
   - Module: repository setup
   - Goal: create project-level agent workflow and documentation skeleton.

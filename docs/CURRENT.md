@@ -8,6 +8,7 @@ Repository collaboration environment initialization.
 
 - Documentation uses the lightweight `docs/` structure.
 - Project-level agent workflow is recorded in root `AGENTS.md`.
+- GitHub remote repository is public: `https://github.com/The0xKa1/DataVisProject`.
 - No frontend or backend framework has been initialized yet.
 - Full `obsidian-docs/` team-collab structure is not enabled.
 
@@ -24,6 +25,7 @@ Repository collaboration environment initialization.
 - Created the initial repository collaboration plan.
 - Initialized git repository metadata.
 - Initialized project documentation structure and handoff conventions.
+- Created the public GitHub repository and pushed `main`.
 
 ## Current Blockers
 
