@@ -6,11 +6,10 @@ This file defines the project-level workflow for AI agents and human collaborato
 
 This repository is for a data visualization course final project. The expected deliverable is a reproducible visual analytics system with clear team contribution records, data provenance, design rationale, AI usage disclosure, and 1-2 case studies.
 
-The current collaboration structure is intentionally lightweight:
+The current collaboration structure is intentionally minimal:
 
 - Project documentation lives in `docs/`.
-- Session handoffs live in `docs/handoff/`.
-- Personal development records live in `docs/开发记录/<name-or-id>/`.
+- Keep only `docs/README.md` and `docs/CURRENT.md` unless the team explicitly asks to split docs again.
 - Do not create `obsidian-docs/` unless the team explicitly decides to migrate to a heavier collaboration protocol.
 
 ## Required Startup Routine
@@ -19,20 +18,14 @@ Before substantive work, every agent must read:
 
 1. `docs/README.md`
 2. `docs/CURRENT.md`
-3. `docs/TODO.md`
-
-If the task touches data, also read `docs/DATASET.md`.
-If the task touches visualization or interaction design, also read `docs/DESIGN.md`.
-If the task affects submission, presentation, or documentation, also read `docs/DIVISION.md`, `docs/AI_USAGE.md`, and `docs/CASE_STUDIES.md` as relevant.
 
 ## Work Protocol
 
 1. Confirm the task goal, affected files, and acceptance criteria before implementing.
 2. Prefer small, reviewable changes that preserve git history as contribution evidence.
 3. Keep code, data processing, visualization design, and documentation decisions traceable.
-4. After finishing a task, update `docs/CURRENT.md` and `docs/TODO.md`.
-5. At the end of a meaningful work session, add a new handoff note under `docs/handoff/`.
-6. Personal process notes, experiments, and responsibility evidence should be written under `docs/开发记录/<name-or-id>/`.
+4. After finishing a meaningful task, update `docs/CURRENT.md`.
+5. Do not recreate `docs/handoff/` or personal note folders unless explicitly requested.
 
 ## Course Requirements To Preserve
 
@@ -61,9 +54,8 @@ The repository must keep enough evidence to satisfy the course requirements:
 ## Documentation Update Rules
 
 - `docs/CURRENT.md`: keep it short and current; update project phase, confirmed decisions, recent completions, blockers, and immediate focus.
-- `docs/TODO.md`: keep task ownership and acceptance criteria explicit.
-- `docs/handoff/`: append one dated note per meaningful session; do not rewrite old handoffs unless correcting a factual mistake.
-- `docs/开发记录/`: each member keeps their own record directory.
+- `docs/README.md`: keep the stable project brief, dataset direction, view plan, and course constraints.
+- Keep both docs under 100 lines where practical.
 
 ## Suggested Commit Style
 

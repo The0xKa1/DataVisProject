@@ -57,3 +57,6 @@ reports/generated/
 .cache/
 .tmp/
 tmp/
+
+# Playwright MCP browser snapshots / console dumps
+.playwright-mcp/

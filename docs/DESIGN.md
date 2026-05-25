@@ -1,51 +1,111 @@
-# DESIGN
+数据可视化与可视分析核心设计原则
 
-## Problem Background
+在可视分析（Visual Analytics）系统设计中，优秀的系统不仅仅取决于视觉的华丽程度，更取决于其是否能够高效地降低用户的认知负载（Cognitive Load），并辅助人类专家发现数据中潜在的规律（Insights）。
 
-TBD.
+以下是学术界与工业界公认的五大核心可视化原则，以及它们在系统设计中的应用决策方法。
 
-## Target Users
+原则一：本·施耐德曼的“信息检索黄金八字”（Shneiderman's Cognitive Mantra）
 
-TBD.
+"Overview first, zoom and filter, then details-on-demand."
 
-## Analysis Tasks
+（宏观主导，缩放过滤，细节按需）
 
-List the core tasks the system should support.
+这是可视分析系统布局与交互设计的最高纲领。任何复杂的分析系统都应遵循这一认知动线：
 
-1. TBD.
-2. TBD.
-3. TBD.
+宏观主导 (Overview First)：系统加载时，首先向用户展示数据的全貌。例如，通过全局的舆情态势流图、或完整的社交传播拓扑网络，让分析师对整体规模、爆发趋势有一个宏观的直觉认知。
 
-## View Design
+缩放过滤 (Zoom and Filter)：用户通过缩放（Zooming）、平移（Panning）或滑动时间轴、调整滑块，过滤掉无关的噪声，聚焦于特定时间段（如 T+12h）或特定区域的节点。
 
-| View | Purpose | Data Encoding | Interaction |
-| --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD |
+细节按需 (Details-on-Demand)：只有当用户主动点击某个特定实体（如某个疑似水军账号）时，系统才在侧边栏展示该实体的微观属性（发帖原文、IP属地、设备特征等）。绝不要一开始就将所有微观文字塞满屏幕。
 
-## Coordination and Interaction
+原则二：视觉通道的表现力与有效性（Expressiveness and Effectiveness）
 
-Describe how views coordinate with each other, for example filtering, brushing, selection, linked highlighting, drill-down, or temporal navigation.
+根据可视化泰斗 Tamara Munzner 的理论，数据属性可分为定性/类别数据（Categorical）和定量/顺序数据（Quantitative/Ordinal）。不同的数据属性必须映射到最合适的视觉通道（Visual Channels）上。
 
-## Design References
+视觉通道 (Visual Channel)
 
-Record any borrowed ideas from papers, challenge systems, open-source projects, or visualization techniques.
+适合映射的数据类型
 
-| Reference | Borrowed Idea | How This Project Adapts It |
-| --- | --- | --- |
-| TBD | TBD | TBD |
+有效性排序 (Effectiveness)
 
-## Original Contributions
+空间位置 (Position)
 
-Explain what the team contributes beyond simply replacing data in an existing project.
+任何数据（最强通道）
 
-- TBD.
+★★★★★
 
-## Design Decisions To Defend
+尺寸/大小 (Size/Length)
 
-Use this section to prepare for presentation questions.
+定量数据（如发帖频次 $F$）
 
-- Why these analysis tasks?
-- Why these views?
-- Why these interactions?
-- Why this data transformation?
-- What alternatives were considered and rejected?
+★★★★☆
+
+色彩饱和度/亮度 (Saturation)
+
+定量数据（如话术相似度 $S \in [0, 1]$）
+
+★★★☆☆
+
+色相/颜色种类 (Hue)
+
+定性数据（如账号角色：水军/正常人/大V）
+
+★★★☆☆ (非常适合分类)
+
+形状 (Shape)
+
+定性数据
+
+★★☆☆☆
+
+设计决策应用：
+
+不要混淆通道用途：不要用“色相”（红/黄/蓝）来表示数值的大小（容易引起歧义）；用同一色系的不同“饱和度/亮度”（浅蓝到深蓝）来表示数值高低。
+
+双重编码（Double Encoding）：为了增强视觉辨识度（对色盲用户友好），可以对关键属性进行双重映射。例如：水军节点不仅颜色为红色，且其大小比普通节点大，或伴随闪烁的动力学特效。
+
+原则三：爱德华·塔夫特的“数据墨水比”原则（Tufte's Data-Ink Ratio）
+
+可视化先驱 Edward Tufte 提出了数据墨水比的核心概念：
+
+$$\text{Data-Ink Ratio} = \frac{\text{用于展现数据的墨水（像素）}}{\text{打印/绘制图表所用的总墨水（像素）}}$$
+
+高数据墨水比 (High Data-Ink Ratio)：图表中的每一个像素都应该传递有效的信息。
+
+剔除图表垃圾 (Eliminate Chartjunk)：
+
+避免无意义的 3D 柱状图（3D 视觉投影会引入视差和数据扭曲）。
+
+避免过于刺眼、无意义的背景网格线。
+
+避免纯粹为了装饰而存在的炫目特效。
+
+诚实表达 (Graphical Integrity)：视觉元素的比例应严格等于数据本身的比例。例如，不能为了刻意夸大水军比例，将占比 $20\%$ 的水军圆点绘制得比正常节点大 $10$ 倍。
+
+原则四：多视图协同与一致性（Multi-View Coordination & Consistency）
+
+在多视图系统（Multi-view Systems）中，视图之间不能是“信息孤岛”，必须满足以下两条铁律：
+
+一致性视觉编码 (Visual Consistency)：
+
+如果一个实体在视图 A 中呈现为红色，它在视图 B、C 中也必须是红色。
+
+严禁出现“在折线图中水军是红色，在散点图中水军却变成了黄色”的情况，这会彻底破坏用户的认知连贯性。
+
+刷选与联动交互 (Brushing & Linking)：
+
+Brushing：用户在视图 A 上通过鼠标框选、选中一部分数据子集。
+
+Linking：系统自动捕获这一选中状态，并将其他视图（B、C）中对应的相同实体进行高亮、过滤或重绘。
+
+这能帮助用户建立多维特征之间的跨视图语义关联（如：从“散点图”的空间聚集映射到“拓扑图”的结构聚集）。
+
+原则五：格式塔心理学原则与认知负载降低（Gestalt Principles）
+
+设计应当符合人类大脑整合视觉信息的本能：
+
+邻近原则 (Proximity)：将功能相近的控制面板、图表紧邻摆放（例如将控制水军审计门限的滑块与展示水军特征的散点图放在同一侧边栏）。
+
+相似原则 (Similarity)：具有相似视觉属性（同色、同型）的元素会被大脑默认归为同类。
+
+连贯性与闭合原则 (Continuity and Closure)：在网络拓扑图中，连线指向应当清晰，节点的物理布局（Layout）应尽量避免过多的线段交叉（Edge Crossing），以降低视觉噪声。

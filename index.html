@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataVisProject | 协同扩散审计</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./src/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "d3": "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm",
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="project-label"><i></i>DataVisProject · v0.3</span>
+          <h1>虚假信息<em>协同扩散</em>审计</h1>
+          <p class="brand-sub">CHECKED · Weibo COVID-19 · <span id="dateRange">loading…</span></p>
+        </div>
+        <div class="topbar-meta">
+          <div class="legend">
+            <span><i class="dot fake"></i>虚假</span>
+            <span><i class="dot real"></i>真实</span>
+            <span><i class="dot accent"></i>互动量</span>
+          </div>
+          <div class="quick-filter">
+            <div class="segmented" role="group" aria-label="Label filter">
+              <button class="active" data-label="all">全部</button>
+              <button data-label="fake">虚假</button>
+              <button data-label="real">真实</button>
+            </div>
+            <input id="searchInput" type="search" placeholder="搜索关键词 / 文本片段…" />
+          </div>
+        </div>
+      </header>
+
+      <section class="metrics" id="metrics"></section>
+
+      <main class="workspace">
+        <article class="panel timeline-panel">
+          <div class="panel-head">
+            <div>
+              <h2>事件时间线</h2>
+              <span class="panel-hint">堆叠：每月微博数（真/伪） · 折线：评论 + 转发量 · 拖拽框选时间窗口联动全部视图</span>
+            </div>
+            <button id="resetBrush" class="ghost-btn" type="button">重置窗口</button>
+          </div>
+          <svg id="timelineChart" role="img" aria-label="Monthly microblog timeline"></svg>
+        </article>
+
+        <article class="panel network-panel">
+          <div class="panel-head">
+            <div>
+              <h2>传播网络（力导向）</h2>
+              <span class="panel-hint">力导向布局 · 大节点 = 微博，小节点 = 账号 · 微博外环 = 转发/评论比例，缺口 = 发布时刻 · 账号双半圆 = fake 占比 / 活跃度 · 滚轮缩放、拖拽平移</span>
+            </div>
+            <div class="net-controls">
+              <button class="ghost-btn" type="button" id="netReheat">重新布局</button>
+            </div>
+          </div>
+          <svg id="networkGraph" role="img"></svg>
+          <div class="net-overlay" id="netOverlay">
+            <span><b id="netStatNodes">0</b> nodes</span>
+            <span><b id="netStatEdges">0</b> edges</span>
+            <span id="netSelInfo" class="net-sel"></span>
+          </div>
+        </article>
+
+        <article class="panel orbit-panel">
+          <div class="panel-head">
+            <div>
+              <h2>3D 传播星轨</h2>
+              <span class="panel-hint">three.js · 每颗恒星 = 热门微博 · 轨道半径 ∝ 互动热度 · 光盘厚度 ∝ log(likes) · 彗尾长度 ∝ |评论 − 转发| · 拖动旋转 / 滚轮缩放 · 点击联动证据</span>
+            </div>
+            <div class="orbit-controls">
+              <label class="checkbox"><input type="checkbox" id="orbitAutoRotate" checked /> 自动旋转</label>
+            </div>
+          </div>
+          <div id="orbitScene" class="orbit-scene"></div>
+        </article>
+
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h2>主题词强度</h2>
+              <span class="panel-hint">真 / 伪 在该词上的频次对照</span>
+            </div>
+            <svg id="keywordChart" role="img"></svg>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <h2>协同账号热度</h2>
+              <span class="panel-hint">活跃度评分 · 顶部为高活跃账号</span>
+            </div>
+            <svg id="actorChart" role="img"></svg>
+          </article>
+        </div>
+
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h2>重复文本信号</h2>
+              <span class="panel-hint">高复用短语 = 潜在协同模板</span>
+            </div>
+            <div id="phraseList" class="phrase-list"></div>
+          </article>
+
+          <article class="panel evidence">
+            <div class="panel-head">
+              <h2>证据样本</h2>
+              <span class="panel-hint">点击网络节点或下方事件切换</span>
+            </div>
+            <div id="evidencePanel"></div>
+          </article>
+        </div>
+      </main>
+
+      <footer class="footnote">
+        <span>CHECKED · <a href="https://github.com/cyang03/CHECKED" target="_blank" rel="noreferrer noopener">github.com/cyang03/CHECKED</a></span>
+        <span>仅探索性审计，不作自动认定</span>
+      </footer>
+    </div>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
