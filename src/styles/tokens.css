@@ -1,0 +1,40 @@
+:root {
+  color-scheme: light;
+
+  --bg: #f4f4f2;
+  --bg-deep: #ececea;
+  --surface: #ffffff;
+  --surface-alt: #fafaf8;
+  --ink: #111111;
+  --ink-soft: #2a2a2a;
+  --muted: #6b6b6b;
+  --muted-2: #9a9a96;
+  --rule: #111111;
+  --rule-soft: rgba(17, 17, 17, 0.18);
+  --rule-faint: rgba(17, 17, 17, 0.08);
+
+  --cool: #5c7c9e;
+  --cool-soft: rgba(92, 124, 158, 0.22);
+  --hot: #ff5500;
+  --hot-soft: rgba(255, 85, 0, 0.18);
+
+  --invert-bg: #111111;
+  --invert-fg: #ffffff;
+
+  --hairline: 1px solid var(--rule);
+  --hairline-soft: 1px solid var(--rule-soft);
+  --shadow-hot: -4px 4px 0 var(--hot);
+  --shadow-ink: -3px 3px 0 var(--ink);
+
+  --grid-color: rgba(17, 17, 17, 0.06);
+  --grid-size: 40px;
+
+  --font-sans: "Inter", "Inter Tight", "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --eyebrow: 600 10px/1 var(--font-mono);
+  --eyebrow-track: 0.18em;
+
+  --ease: cubic-bezier(0.2, 0.65, 0.25, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.4, 1);
+}

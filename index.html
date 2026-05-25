@@ -3,13 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DataVisProject | 协同扩散审计</title>
+    <title>CHECKED // DIFFUSION AUDIT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="./src/styles.css" />
     <script type="importmap">
       {
@@ -22,28 +18,29 @@
     </script>
   </head>
   <body>
-    <div class="grain" aria-hidden="true"></div>
-    <div class="ambient" aria-hidden="true"></div>
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
-          <span class="project-label"><i></i>DataVisProject · v0.3</span>
-          <h1>虚假信息<em>协同扩散</em>审计</h1>
-          <p class="brand-sub">CHECKED · Weibo COVID-19 · <span id="dateRange">loading…</span></p>
+          <span class="brand-eyebrow"><i></i>00 · CHECKED / WEIBO COVID-19 AUDIT</span>
+          <span class="wordmark" lang="en">checked<span class="slash">//</span><b>diffusion</b>.audit</span>
+          <p class="brand-sub">
+            <span><b>v0.4</b> · 协同扩散审计 (exploratory)</span>
+            <span><b>WINDOW</b> · <span id="dateRange">loading…</span></span>
+          </p>
         </div>
         <div class="topbar-meta">
           <div class="legend">
-            <span><i class="dot fake"></i>虚假</span>
-            <span><i class="dot real"></i>真实</span>
-            <span><i class="dot accent"></i>互动量</span>
+            <span><i class="dot fake"></i>FAKE</span>
+            <span><i class="dot real"></i>REAL</span>
+            <span><i class="dot accent"></i>ENGAGEMENT</span>
           </div>
           <div class="quick-filter">
             <div class="segmented" role="group" aria-label="Label filter">
-              <button class="active" data-label="all">全部</button>
-              <button data-label="fake">虚假</button>
-              <button data-label="real">真实</button>
+              <button class="active" data-label="all">ALL</button>
+              <button data-label="fake">FAKE</button>
+              <button data-label="real">REAL</button>
             </div>
-            <input id="searchInput" type="search" placeholder="搜索关键词 / 文本片段…" />
+            <input id="searchInput" type="search" placeholder="SEARCH KEYWORDS / PHRASES" />
           </div>
         </div>
       </header>
@@ -54,10 +51,11 @@
         <article class="panel timeline-panel">
           <div class="panel-head">
             <div>
-              <h2>事件时间线</h2>
-              <span class="panel-hint">堆叠：每月微博数（真/伪） · 折线：评论 + 转发量 · 拖拽框选时间窗口联动全部视图</span>
+              <span class="eyebrow-row"><span class="num">02</span><span class="sep">·</span><span>TIMELINE / TEMPORAL</span></span>
+              <h2>Monthly diffusion</h2>
+              <span class="panel-hint">stacked bars = posts per month (fake / real) · line = comments + reposts · drag to scope the window</span>
             </div>
-            <button id="resetBrush" class="ghost-btn" type="button">重置窗口</button>
+            <button id="resetBrush" class="ghost-btn" type="button">RESET WINDOW</button>
           </div>
           <svg id="timelineChart" role="img" aria-label="Monthly microblog timeline"></svg>
         </article>
@@ -65,17 +63,18 @@
         <article class="panel network-panel">
           <div class="panel-head">
             <div>
-              <h2>传播网络（力导向）</h2>
-              <span class="panel-hint">力导向布局 · 大节点 = 微博，小节点 = 账号 · 微博外环 = 转发/评论比例，缺口 = 发布时刻 · 账号双半圆 = fake 占比 / 活跃度 · 滚轮缩放、拖拽平移</span>
+              <span class="eyebrow-row"><span class="num">03</span><span class="sep">·</span><span>NETWORK / DIFFUSION</span></span>
+              <h2>Force-directed propagation</h2>
+              <span class="panel-hint">squares = microblogs · small marks = actors · outer ring = repost / comment share · notch = publish position in window · scroll to zoom · drag to pan</span>
             </div>
             <div class="net-controls">
-              <button class="ghost-btn" type="button" id="netReheat">重新布局</button>
+              <button class="ghost-btn" type="button" id="netReheat">REHEAT</button>
             </div>
           </div>
           <svg id="networkGraph" role="img"></svg>
           <div class="net-overlay" id="netOverlay">
-            <span><b id="netStatNodes">0</b> nodes</span>
-            <span><b id="netStatEdges">0</b> edges</span>
+            <span><b id="netStatNodes">0</b> NODES</span>
+            <span><b id="netStatEdges">0</b> EDGES</span>
             <span id="netSelInfo" class="net-sel"></span>
           </div>
         </article>
@@ -83,11 +82,12 @@
         <article class="panel orbit-panel">
           <div class="panel-head">
             <div>
-              <h2>3D 传播星轨</h2>
-              <span class="panel-hint">three.js · 每颗恒星 = 热门微博 · 轨道半径 ∝ 互动热度 · 光盘厚度 ∝ log(likes) · 彗尾长度 ∝ |评论 − 转发| · 拖动旋转 / 滚轮缩放 · 点击联动证据</span>
+              <span class="eyebrow-row"><span class="num">04</span><span class="sep">·</span><span>ORBIT / 3D STARFIELD</span></span>
+              <h2>Engagement orbit</h2>
+              <span class="panel-hint">three.js · each star = a top microblog · orbit radius ∝ engagement · disc thickness ∝ log(likes) · trail ∝ |comments − reposts| · drag to rotate · scroll to zoom</span>
             </div>
             <div class="orbit-controls">
-              <label class="checkbox"><input type="checkbox" id="orbitAutoRotate" checked /> 自动旋转</label>
+              <label class="checkbox"><input type="checkbox" id="orbitAutoRotate" checked /> AUTO ROTATE</label>
             </div>
           </div>
           <div id="orbitScene" class="orbit-scene"></div>
@@ -96,15 +96,21 @@
         <div class="grid two">
           <article class="panel">
             <div class="panel-head">
-              <h2>主题词强度</h2>
-              <span class="panel-hint">真 / 伪 在该词上的频次对照</span>
+              <div>
+                <span class="eyebrow-row"><span class="num">05</span><span class="sep">·</span><span>KEYWORDS / INTENSITY</span></span>
+                <h2>Term frequency split</h2>
+                <span class="panel-hint">real vs. fake share per keyword</span>
+              </div>
             </div>
             <svg id="keywordChart" role="img"></svg>
           </article>
           <article class="panel">
             <div class="panel-head">
-              <h2>协同账号热度</h2>
-              <span class="panel-hint">活跃度评分 · 顶部为高活跃账号</span>
+              <div>
+                <span class="eyebrow-row"><span class="num">06</span><span class="sep">·</span><span>ACTORS / COORDINATION</span></span>
+                <h2>High-activity accounts</h2>
+                <span class="panel-hint">activity score · hot cap when fake share &gt; 50%</span>
+              </div>
             </div>
             <svg id="actorChart" role="img"></svg>
           </article>
@@ -113,16 +119,22 @@
         <div class="grid two">
           <article class="panel">
             <div class="panel-head">
-              <h2>重复文本信号</h2>
-              <span class="panel-hint">高复用短语 = 潜在协同模板</span>
+              <div>
+                <span class="eyebrow-row"><span class="num">07</span><span class="sep">·</span><span>PHRASES / TEMPLATES</span></span>
+                <h2>Repeated text signals</h2>
+                <span class="panel-hint">re-used phrases = potential coordination templates</span>
+              </div>
             </div>
             <div id="phraseList" class="phrase-list"></div>
           </article>
 
           <article class="panel evidence">
             <div class="panel-head">
-              <h2>证据样本</h2>
-              <span class="panel-hint">点击网络节点或下方事件切换</span>
+              <div>
+                <span class="eyebrow-row"><span class="num">08</span><span class="sep">·</span><span>EVIDENCE / SAMPLE</span></span>
+                <h2>Anonymized evidence</h2>
+                <span class="panel-hint">click a network node or event row to switch sample</span>
+              </div>
             </div>
             <div id="evidencePanel"></div>
           </article>
@@ -130,8 +142,8 @@
       </main>
 
       <footer class="footnote">
-        <span>CHECKED · <a href="https://github.com/cyang03/CHECKED" target="_blank" rel="noreferrer noopener">github.com/cyang03/CHECKED</a></span>
-        <span>仅探索性审计，不作自动认定</span>
+        <span class="footnote-tag"><i></i>CHECKED · <a href="https://github.com/cyang03/CHECKED" target="_blank" rel="noreferrer noopener">github.com/cyang03/CHECKED</a></span>
+        <span>EXPLORATORY AUDIT · NOT AUTOMATIC ACCUSATION</span>
       </footer>
     </div>
 

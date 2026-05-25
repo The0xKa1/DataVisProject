@@ -3,14 +3,17 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const COLORS = {
-  fake: "#b8392e",
-  real: "#1f7e57",
-  accent: "#2944c0",
-  actor: "#2944c0",
-  ink: "#15170f",
-  muted: "#98968b",
-  line: "#ddd7c5",
-  surface: "#fdfbf5",
+  fake: "#ff5500",
+  real: "#111111",
+  accent: "#5c7c9e",
+  actor: "#5c7c9e",
+  ink: "#111111",
+  muted: "#6b6b6b",
+  line: "rgba(17, 17, 17, 0.18)",
+  surface: "#ffffff",
+  bg: "#f4f4f2",
+  hot: "#ff5500",
+  cool: "#5c7c9e",
 };
 
 const state = {
@@ -44,9 +47,9 @@ function escapeHTML(value) {
     .replaceAll("'", "&#039;");
 }
 
-const labelName = (l) => (l === "fake" ? "虚假" : l === "real" ? "真实" : "全部");
+const labelName = (l) => (l === "fake" ? "FAKE" : l === "real" ? "REAL" : "ALL");
 const labelClass = (l) => (l === "fake" ? "label-fake" : l === "real" ? "label-real" : "");
-const labelColor = (l) => (l === "fake" ? COLORS.fake : l === "real" ? COLORS.real : COLORS.accent);
+const labelColor = (l) => (l === "fake" ? COLORS.fake : l === "real" ? COLORS.real : COLORS.cool);
 
 function eventDate(event) {
   return event._date || (event._date = parseDate(event.date) || new Date(event.date));
@@ -106,8 +109,8 @@ function renderLoading() {
   $("#dateRange").textContent = "loading";
   $("#metrics").innerHTML = Array.from({ length: 5 })
     .map(
-      () => `<div class="metric skeleton-block">
-        <span class="m-label skeleton-line short"></span>
+      (_, i) => `<div class="metric skeleton-block">
+        <span class="m-label"><span class="num">0${i + 1}</span><span class="skeleton-line short"></span></span>
         <strong class="m-value skeleton-line"></strong>
         <span class="m-sub skeleton-line mid"></span>
       </div>`,
@@ -115,17 +118,17 @@ function renderLoading() {
     .join("");
   ["#timelineChart", "#networkGraph", "#keywordChart", "#actorChart"].forEach((sel) => {
     const t = $(sel);
-    if (t) t.innerHTML = `<text x="50%" y="50%" text-anchor="middle" class="chart-empty">加载 CHECKED 摘要中</text>`;
+    if (t) t.innerHTML = `<text x="50%" y="50%" text-anchor="middle" class="chart-empty">LOADING CHECKED SUMMARY</text>`;
   });
-  $("#orbitScene").innerHTML = `<div class="orbit-loading"><span></span><p>building propagation orbit</p></div>`;
-  $("#phraseList").innerHTML = `<div class="list-empty">正在整理重复文本信号</div>`;
-  $("#evidencePanel").innerHTML = `<div class="evidence-card"><p class="evidence-body">正在载入证据样本。</p></div>`;
+  $("#orbitScene").innerHTML = `<div class="orbit-loading"><span></span><p>BUILDING PROPAGATION ORBIT</p></div>`;
+  $("#phraseList").innerHTML = `<div class="list-empty">SCANNING PHRASE TEMPLATES</div>`;
+  $("#evidencePanel").innerHTML = `<div class="evidence-card empty-panel"><span class="empty-mark"></span><p class="evidence-body">LOADING EVIDENCE SAMPLE.</p></div>`;
 }
 
 function renderError(error) {
   document.body.innerHTML = `<main class="error-state">
-    <p class="project-label">DataVisProject</p>
-    <h1>数据加载失败</h1>
+    <p>CHECKED // DIFFUSION AUDIT</p>
+    <h1 class="wordmark" lang="en" style="margin:14px 0">load.failed</h1>
     <p>${escapeHTML(error.message)}</p>
   </main>`;
 }
@@ -138,24 +141,24 @@ function renderMetrics() {
   const events = getEvents();
   const window = state.dateRange
     ? `${d3.timeFormat("%Y-%m-%d")(state.dateRange[0])} → ${d3.timeFormat("%Y-%m-%d")(state.dateRange[1])}`
-    : "all months";
+    : "ALL MONTHS";
   const metrics = [
-    ["Microblogs", stats.microblogs, `${fakeRatio.toFixed(1)}% fake-labeled`],
-    ["Actors", stats.actors, "hashed ids only"],
-    ["Comments", stats.comments, "propagation evidence"],
-    ["Reposts", stats.reposts, "diffusion edges"],
-    ["Case Window", window, `${labelName(state.label)} · ${events.length} samples`],
+    { num: "01", label: "MICROBLOGS", value: stats.microblogs, sub: `${fakeRatio.toFixed(1)}% FAKE-LABELED`, hot: true },
+    { num: "02", label: "ACTORS", value: stats.actors, sub: "HASHED IDS ONLY" },
+    { num: "03", label: "COMMENTS", value: stats.comments, sub: "PROPAGATION EVIDENCE" },
+    { num: "04", label: "REPOSTS", value: stats.reposts, sub: "DIFFUSION EDGES" },
+    { num: "05", label: "CASE WINDOW", value: window, sub: `${labelName(state.label)} · ${events.length} SAMPLES` },
   ];
   $("#metrics").innerHTML = metrics
     .map(
-      ([label, value, sub]) => `<div class="metric">
-        <span class="m-label">${escapeHTML(label)}</span>
-        <strong class="m-value">${typeof value === "number" ? compactFmt.format(value) : escapeHTML(value)}</strong>
-        <span class="m-sub">${escapeHTML(sub)}</span>
+      (m) => `<div class="metric${m.hot ? " metric--hot" : ""}">
+        <span class="m-label"><span class="num">${m.num}</span><span>${escapeHTML(m.label)}</span></span>
+        <strong class="m-value">${typeof m.value === "number" ? compactFmt.format(m.value) : escapeHTML(m.value)}</strong>
+        <span class="m-sub">${escapeHTML(m.sub)}</span>
       </div>`,
     )
     .join("");
-  $("#dateRange").textContent = `${stats.dateStart.slice(0, 10)} - ${stats.dateEnd.slice(0, 10)}`;
+  $("#dateRange").textContent = `${stats.dateStart.slice(0, 10)} → ${stats.dateEnd.slice(0, 10)}`;
 }
 
 /* ---------- TIMELINE (d3 stacked bar + line + brushX) ---------- */
@@ -187,10 +190,10 @@ function renderTimeline() {
   g.append("g")
     .attr("class", "tl-grid")
     .call(d3.axisLeft(y).ticks(4).tickSize(-innerW).tickFormat(""))
-    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line).attr("stroke-dasharray", "2 4"))
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line).attr("stroke-dasharray", "1 4"))
     .call((sel) => sel.select(".domain").remove());
 
-  // Stacked bars: real bottom, fake top
+  // Stacked bars: real bottom, fake top — sharp rects, no rounding
   const monthGroups = g.selectAll("g.month-group")
     .data(rows)
     .join("g")
@@ -202,16 +205,14 @@ function renderTimeline() {
     .attr("x", 0)
     .attr("y", (d) => y(d.real))
     .attr("width", barW)
-    .attr("height", (d) => innerH - y(d.real))
-    .attr("rx", 3);
+    .attr("height", (d) => innerH - y(d.real));
 
   monthGroups.append("rect")
     .attr("class", "area-fake")
     .attr("x", 0)
     .attr("y", (d) => y(d.real + d.fake))
     .attr("width", barW)
-    .attr("height", (d) => y(d.real) - y(d.real + d.fake))
-    .attr("rx", 3);
+    .attr("height", (d) => y(d.real) - y(d.real + d.fake));
 
   // Engagement line + dots (right axis)
   const line = d3.line()
@@ -230,33 +231,34 @@ function renderTimeline() {
     .attr("class", "interaction-dot")
     .attr("cx", (d) => barCenter(d))
     .attr("cy", (d) => yRight(d.comments + d.reposts))
-    .attr("r", 4.2);
+    .attr("r", 2.5);
 
   // Axes
   g.append("g")
     .attr("class", "tl-axis")
     .attr("transform", `translate(0,${innerH})`)
     .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%Y-%m")))
-    .call((sel) => sel.select(".domain").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("text").attr("fill", COLORS.muted).style("font-family", "var(--font-mono)").style("font-size", "11px"));
+    .call((sel) => sel.select(".domain").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("text").attr("fill", COLORS.ink).style("font-family", "var(--font-mono)").style("font-size", "10px").style("letter-spacing", "0.06em").style("text-transform", "uppercase"));
 
   g.append("g")
     .attr("class", "tl-axis")
     .call(d3.axisLeft(y).ticks(4))
     .call((sel) => sel.select(".domain").remove())
-    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("text").attr("fill", COLORS.muted).style("font-family", "var(--font-mono)").style("font-size", "11px"));
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("text").attr("fill", COLORS.ink).style("font-family", "var(--font-mono)").style("font-size", "10px"));
 
   g.append("g")
     .attr("class", "tl-axis")
     .attr("transform", `translate(${innerW},0)`)
     .call(d3.axisRight(yRight).ticks(4).tickFormat((d) => compactFmt.format(d)))
     .call((sel) => sel.select(".domain").remove())
-    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("text").attr("fill", COLORS.accent).style("font-family", "var(--font-mono)").style("font-size", "11px"));
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.cool))
+    .call((sel) => sel.selectAll("text").attr("fill", COLORS.cool).style("font-family", "var(--font-mono)").style("font-size", "10px"));
 
   g.append("text").attr("class", "axis-title").attr("x", 0).attr("y", -12).text("MONTHLY POSTS");
-  g.append("text").attr("class", "axis-title").attr("x", innerW).attr("y", -12).attr("text-anchor", "end").text("ENGAGEMENT");
+  g.append("text").attr("class", "axis-title").attr("x", innerW).attr("y", -12).attr("text-anchor", "end").attr("fill", COLORS.cool).text("ENGAGEMENT");
 
   // Hover tooltip on month groups
   monthGroups
@@ -277,7 +279,14 @@ function renderTimeline() {
     .on("end", brushed);
 
   const brushG = g.append("g").attr("class", "tl-brush").call(brush);
-  brushG.selectAll(".selection").attr("fill", COLORS.ink).attr("fill-opacity", 0.06).attr("stroke", COLORS.ink).attr("stroke-opacity", 0.4);
+  brushG.selectAll(".selection")
+    .attr("fill", COLORS.ink)
+    .attr("fill-opacity", 0.08)
+    .attr("stroke", COLORS.ink)
+    .attr("stroke-width", 1)
+    .attr("stroke-dasharray", "4 3")
+    .attr("shape-rendering", "crispEdges");
+  brushG.selectAll(".handle").attr("fill", COLORS.ink);
 
   // Restore current selection visually
   if (state.dateRange) {
@@ -353,20 +362,27 @@ function renderKeywords() {
   rowG.append("line")
     .attr("class", "kw-real-line")
     .attr("x1", 0).attr("x2", (d) => x(d.real))
-    .attr("y1", y.bandwidth() / 2 - 2).attr("y2", y.bandwidth() / 2 - 2);
+    .attr("y1", y.bandwidth() / 2 - 3).attr("y2", y.bandwidth() / 2 - 3);
 
   rowG.append("line")
     .attr("class", "kw-fake-line")
     .attr("x1", 0).attr("x2", (d) => x(d.fake))
-    .attr("y1", y.bandwidth() / 2 + 4).attr("y2", y.bandwidth() / 2 + 4);
+    .attr("y1", y.bandwidth() / 2 + 3).attr("y2", y.bandwidth() / 2 + 3);
 
-  rowG.append("circle")
+  // Square markers — sharp, no radius (holomotion DNA)
+  rowG.append("rect")
     .attr("class", "kw-dot real")
-    .attr("cx", (d) => x(d.real)).attr("cy", y.bandwidth() / 2 - 2).attr("r", 5);
+    .attr("x", (d) => x(d.real) - 4)
+    .attr("y", y.bandwidth() / 2 - 7)
+    .attr("width", 8)
+    .attr("height", 8);
 
-  rowG.append("circle")
+  rowG.append("rect")
     .attr("class", "kw-dot fake")
-    .attr("cx", (d) => x(d.fake)).attr("cy", y.bandwidth() / 2 + 4).attr("r", 4.2);
+    .attr("x", (d) => x(d.fake) - 4)
+    .attr("y", y.bandwidth() / 2 - 1)
+    .attr("width", 8)
+    .attr("height", 8);
 
   rowG.append("text")
     .attr("class", "kw-value")
@@ -378,9 +394,9 @@ function renderKeywords() {
   g.append("g")
     .attr("transform", `translate(0,${innerH})`)
     .call(d3.axisBottom(x).ticks(4).tickFormat((d) => compactFmt.format(d)))
-    .call((sel) => sel.select(".domain").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("text").attr("fill", COLORS.muted).style("font-family", "var(--font-mono)").style("font-size", "11px"));
+    .call((sel) => sel.select(".domain").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("text").attr("fill", COLORS.ink).style("font-family", "var(--font-mono)").style("font-size", "10px").style("text-transform", "uppercase").style("letter-spacing", "0.06em"));
 }
 
 /* ---------- ACTORS (d3 horizontal bar; length = quantity, fake share = inset) ---------- */
@@ -432,35 +448,26 @@ function renderActors() {
   rowG.append("rect")
     .attr("class", "actor-row-bg")
     .attr("x", 0).attr("y", 0)
-    .attr("width", innerW).attr("height", y.bandwidth())
-    .attr("rx", 3);
+    .attr("width", innerW).attr("height", y.bandwidth());
 
+  // Single bar in cool ink: length encodes total engagement.
   rowG.append("rect")
-    .attr("class", "actor-row-real")
+    .attr("class", "actor-row-fill")
     .attr("x", 0).attr("y", 0)
-    .attr("width", (d) => {
-      const total = d.comments + d.reposts;
-      const realShare = total ? 1 - d.fake / total : 1;
-      return x(total) * realShare;
-    })
-    .attr("height", y.bandwidth())
-    .attr("rx", 3);
+    .attr("width", (d) => x(d.comments + d.reposts))
+    .attr("height", y.bandwidth());
 
+  // Fake cap — appears only when fake-share > 0; height encodes its share of the bar.
   rowG.append("rect")
-    .attr("class", "actor-row-fake")
-    .attr("x", (d) => {
-      const total = d.comments + d.reposts;
-      const realShare = total ? 1 - d.fake / total : 1;
-      return x(total) * realShare;
-    })
+    .attr("class", "actor-row-cap")
+    .attr("x", 0)
     .attr("y", 0)
-    .attr("width", (d) => {
+    .attr("width", (d) => x(d.comments + d.reposts))
+    .attr("height", (d) => {
       const total = d.comments + d.reposts;
       const fakeShare = total ? d.fake / total : 0;
-      return x(total) * fakeShare;
-    })
-    .attr("height", y.bandwidth())
-    .attr("rx", 3);
+      return Math.min(y.bandwidth(), Math.max(0, fakeShare * 4 + (fakeShare > 0 ? 2 : 0)));
+    });
 
   rowG.append("text")
     .attr("class", "actor-value")
@@ -471,9 +478,9 @@ function renderActors() {
   g.append("g")
     .attr("transform", `translate(0,${innerH})`)
     .call(d3.axisBottom(x).ticks(4).tickFormat((d) => compactFmt.format(d)))
-    .call((sel) => sel.select(".domain").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.line))
-    .call((sel) => sel.selectAll("text").attr("fill", COLORS.muted).style("font-family", "var(--font-mono)").style("font-size", "11px"));
+    .call((sel) => sel.select(".domain").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("line").attr("stroke", COLORS.ink))
+    .call((sel) => sel.selectAll("text").attr("fill", COLORS.ink).style("font-family", "var(--font-mono)").style("font-size", "10px").style("text-transform", "uppercase").style("letter-spacing", "0.06em"));
 }
 
 /* ---------- NETWORK (d3-force + d3-zoom) ---------- */
@@ -549,77 +556,71 @@ function renderNetwork() {
     .attr("data-id", (d) => (d.kind === "microblog" ? d.id.slice(2) : ""))
     .style("cursor", (d) => (d.kind === "microblog" ? "pointer" : "default"));
 
-  // Core mark: microblog gets a solid circle (filled by label color in CSS);
-  // actor gets a split-saturation badge (Phase 3) — two semicircle paths
-  // sharing the actor hue, with saturation encoding fakeShare (left) and
-  // activityNorm (right).
+  // Microblog core: square frame, fill = label color (CSS-driven via .core.fake / .real)
   nodeSel.filter((d) => d.kind === "microblog")
-    .append("circle")
+    .append("rect")
     .attr("class", (d) => `core ${d.label || "actor"}`)
-    .attr("r", (d) => microblogRadius(d));
+    .attr("x", (d) => -microblogRadius(d))
+    .attr("y", (d) => -microblogRadius(d))
+    .attr("width", (d) => microblogRadius(d) * 2)
+    .attr("height", (d) => microblogRadius(d) * 2);
 
-  const accentHsl = d3.hsl(COLORS.accent);
-  const satForActor = (norm) => 0.2 + Math.max(0, Math.min(1, norm || 0)) * 0.5;
-  const colorForActor = (norm) => {
-    const c = accentHsl.copy();
-    c.s = satForActor(norm);
-    return c.formatHex();
-  };
-
+  // Actor core: small square split left (ink = fake-share) / right (cool = activity).
+  // Saturation encoding from the previous design becomes a width-ratio encoding —
+  // the half is wider when its metric is high. Sharp rect, no arc.
   const actorSel = nodeSel.filter((d) => d.kind !== "microblog");
   actorSel.each(function (d) {
     const r = actorRadius(d);
-    const leftPath = arcGen({
-      innerRadius: 0,
-      outerRadius: r,
-      startAngle: -Math.PI,
-      endAngle: 0,
-    });
-    const rightPath = arcGen({
-      innerRadius: 0,
-      outerRadius: r,
-      startAngle: 0,
-      endAngle: Math.PI,
-    });
-    const g = d3.select(this).append("g").attr("class", "core actor actor-split");
-    g.append("path")
-      .attr("class", "actor-half left")
-      .attr("d", leftPath)
-      .attr("fill", colorForActor(d.fakeShare));
-    g.append("path")
-      .attr("class", "actor-half right")
-      .attr("d", rightPath)
-      .attr("fill", colorForActor(d.activityNorm));
+    const size = r * 2;
+    const g = d3.select(this).append("g").attr("class", "core actor-rect");
+    // Background frame
+    g.append("rect")
+      .attr("class", "actor-frame")
+      .attr("x", -r).attr("y", -r)
+      .attr("width", size).attr("height", size)
+      .attr("fill", COLORS.surface)
+      .attr("stroke", COLORS.ink)
+      .attr("stroke-width", 1);
+    const fake = Math.max(0, Math.min(1, d.fakeShare || 0));
+    const act = Math.max(0, Math.min(1, d.activityNorm || 0));
+    g.append("rect")
+      .attr("class", "actor-half-left")
+      .attr("x", -r).attr("y", r - size * fake)
+      .attr("width", r).attr("height", size * fake);
+    g.append("rect")
+      .attr("class", "actor-half-right")
+      .attr("x", 0).attr("y", r - size * act)
+      .attr("width", r).attr("height", size * act);
+    if (fake > 0.5) {
+      g.append("rect")
+        .attr("class", "actor-flag")
+        .attr("x", -r).attr("y", -r - 2)
+        .attr("width", size).attr("height", 2);
+    }
   });
 
-  // Phase 1: donut outer arcs on microblog nodes — encode repost vs. comment share.
-  // Phase 2: publish-time notch — when a brush window is active, mark each event's
-  // position within that window as a thin radial wedge.
+  // Outer encoding rings on microblog nodes — implemented as 4 stacked rect
+  // segments around the square frame (top = repost share, bottom = comment share,
+  // sides split half-and-half so the visual area still maps to ratio).
+  // The publish-time notch becomes a thin hot bar laid on the top edge.
   const microblogSel = nodeSel.filter((d) => d.kind === "microblog");
   const brush = state.dateRange;
-  const NOTCH_DEG = 12;
   microblogSel.each(function (d) {
     const r = microblogRadius(d);
     const total = (d.repostCount || 0) + (d.commentCount || 0);
     const repostShare = total ? d.repostCount / total : 0.5;
-    const splitAngle = -Math.PI / 2 + repostShare * Math.PI * 2;
-    const ringInner = r;
-    const ringOuter = r + RING_THICKNESS;
-    const repostPath = arcGen({
-      innerRadius: ringInner,
-      outerRadius: ringOuter,
-      startAngle: -Math.PI / 2,
-      endAngle: splitAngle,
-    });
-    const commentPath = arcGen({
-      innerRadius: ringInner,
-      outerRadius: ringOuter,
-      startAngle: splitAngle,
-      endAngle: -Math.PI / 2 + Math.PI * 2,
-    });
+    const t = RING_THICKNESS;
     const g = d3.select(this);
-    g.append("path").attr("class", "ring-repost").attr("d", repostPath);
-    g.append("path").attr("class", "ring-comment").attr("d", commentPath);
+    // Repost band: top edge
+    g.append("rect").attr("class", "ring-repost")
+      .attr("x", -r).attr("y", -r - t)
+      .attr("width", r * 2).attr("height", t)
+      .attr("opacity", 0.4 + 0.55 * repostShare);
+    // Comment band: bottom edge
+    g.append("rect").attr("class", "ring-comment")
+      .attr("x", -r).attr("y", r)
+      .attr("width", r * 2).attr("height", t)
+      .attr("opacity", 0.4 + 0.55 * (1 - repostShare));
 
     if (brush && d.eventDate) {
       const eventTime = parseDate(d.eventDate);
@@ -627,16 +628,12 @@ function renderNetwork() {
         const [a, b] = brush;
         const span = b - a;
         if (span > 0) {
-          const t = Math.max(0, Math.min(1, (eventTime - a) / span));
-          const center = -Math.PI / 2 + t * Math.PI * 2;
-          const half = (NOTCH_DEG / 2) * (Math.PI / 180);
-          const notchPath = arcGen({
-            innerRadius: ringOuter + 1,
-            outerRadius: ringOuter + 2.5,
-            startAngle: center - half,
-            endAngle: center + half,
-          });
-          g.append("path").attr("class", "ring-notch").attr("d", notchPath);
+          const tt = Math.max(0, Math.min(1, (eventTime - a) / span));
+          const notchW = Math.max(2, r * 0.4);
+          const notchX = -r + tt * (r * 2 - notchW);
+          g.append("rect").attr("class", "ring-notch")
+            .attr("x", notchX).attr("y", -r - t - 2)
+            .attr("width", notchW).attr("height", 2);
         }
       }
     }
@@ -706,8 +703,8 @@ function renderNetwork() {
     .force("center", d3.forceCenter(width / 2, height / 2))
     .force("collide", d3.forceCollide().radius((d) =>
       d.kind === "microblog"
-        ? microblogRadius(d) + RING_THICKNESS + 4
-        : actorRadius(d) + 2,
+        ? microblogRadius(d) * Math.SQRT2 + RING_THICKNESS + 4
+        : actorRadius(d) * Math.SQRT2 + 2,
     ));
 
   simulation.on("tick", () => {
@@ -784,15 +781,16 @@ function highlightNetworkSelection() {
 function renderPhrases() {
   const rows = state.data.phrases.slice(0, 24);
   const max = d3.max(rows, (d) => d.count) || 1;
-  const sat = d3.scaleLinear().domain([0, max]).range([0.18, 0.92]);
   $("#phraseList").innerHTML = rows
-    .map((p) => {
+    .map((p, i) => {
       const w = Math.max(4, (p.count / max) * 100);
-      const opacity = sat(p.count).toFixed(2);
-      return `<button class="phrase-row" type="button" data-phrase="${escapeHTML(p.text)}">
+      const hot = (p.count / max) > 0.65;
+      const idx = String(i + 1).padStart(2, "0");
+      return `<button class="phrase-row${hot ? " hot" : ""}" type="button" data-phrase="${escapeHTML(p.text)}">
+        <span class="phrase-id">${idx}</span>
         <p>${escapeHTML(p.text)}</p>
-        <span class="meta"><b>${fmt.format(p.count)}</b> / ${fmt.format(p.users)} users</span>
-        <span class="heat"><span style="width:${w}%; opacity:${opacity}"></span></span>
+        <span class="phrase-meta"><b>${fmt.format(p.count)}</b> HITS · ${fmt.format(p.users)} USERS</span>
+        <span class="phrase-bar"><span style="width:${w}%"></span></span>
       </button>`;
     })
     .join("");
@@ -808,7 +806,7 @@ function renderEvidence() {
   if (!events.length) {
     $("#evidencePanel").innerHTML = `<div class="evidence-card empty-panel">
       <span class="empty-mark"></span>
-      <p class="evidence-body">没有匹配的证据样本。可以清空搜索词、切回全部标签，或重置时间窗口。</p>
+      <p class="evidence-body">NO MATCHING EVIDENCE. Clear the search, switch to ALL, or reset the time window.</p>
     </div>`;
     return;
   }
@@ -821,14 +819,14 @@ function renderEvidence() {
       <span class="tag ${labelClass(event.label)}">${labelName(event.label)}</span>
       <span class="tag">${escapeHTML(event.date)}</span>
       <span class="tag">${escapeHTML(event.shortId)}</span>
-      <span class="tag">user ${escapeHTML(event.user)}</span>
+      <span class="tag">USER ${escapeHTML(event.user)}</span>
     </div>
     <p class="evidence-body">${escapeHTML(event.text)}</p>
-    ${event.analysis ? `<p class="evidence-body muted"><strong>核验分析：</strong>${escapeHTML(event.analysis)}</p>` : ""}
+    ${event.analysis ? `<p class="evidence-body muted"><strong>FACT-CHECK · </strong>${escapeHTML(event.analysis)}</p>` : ""}
     <div class="evidence-meta-grid">
-      <span><b>${fmt.format(event.commentCount)}</b> comments</span>
-      <span><b>${fmt.format(event.repostCount)}</b> reposts</span>
-      <span><b>${fmt.format(event.likeCount)}</b> likes</span>
+      <span><b>${fmt.format(event.commentCount)}</b> COMMENTS</span>
+      <span><b>${fmt.format(event.repostCount)}</b> REPOSTS</span>
+      <span><b>${fmt.format(event.likeCount)}</b> LIKES</span>
     </div>
     <div class="tagline">${tags.map((t) => `<button class="tag tag-button" type="button" data-tag="${escapeHTML(t)}">${escapeHTML(t)}</button>`).join("")}</div>
   </div>`;
@@ -843,7 +841,7 @@ function renderEvidence() {
         <p>${escapeHTML(ev.text)}</p>
       </button>`,
     )
-    .join("") || `<div class="list-empty">没有可展示的事件。</div>`;
+    .join("") || `<div class="list-empty">NO EVENTS TO DISPLAY.</div>`;
   $("#evidencePanel").appendChild(list);
   list.querySelectorAll(".event-row").forEach((row) => {
     row.addEventListener("click", () => setSelected(row.getAttribute("data-id")));
@@ -891,10 +889,10 @@ function renderOrbit() {
   disposeOrbit();
   const scene = $("#orbitScene");
   scene.innerHTML = `<div class="orbit-legend">
-    <span>stars: top microblogs</span>
-    <span>orbit radius: engagement</span>
-    <span>disc thickness: log(likes)</span>
-    <span>comet trail: |comments − reposts|</span>
+    <span>STARS · TOP MICROBLOGS</span>
+    <span>RADIUS · ENGAGEMENT</span>
+    <span>DISC · LOG(LIKES)</span>
+    <span>TRAIL · |Δ COMMENTS−REPOSTS|</span>
   </div>`;
 
   const events = getEvents()
@@ -902,7 +900,7 @@ function renderOrbit() {
     .sort((a, b) => (b.commentCount + b.repostCount) - (a.commentCount + a.repostCount))
     .slice(0, 24);
   if (!events.length) {
-    scene.innerHTML += `<div class="orbit-loading"><p>当前筛选条件下没有可展示的微博。</p></div>`;
+    scene.innerHTML += `<div class="orbit-loading"><p>NO MICROBLOGS UNDER CURRENT FILTER.</p></div>`;
     return;
   }
   const rect = scene.getBoundingClientRect();
@@ -912,15 +910,14 @@ function renderOrbit() {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(w, h);
-  renderer.setClearColor(0x07080b, 1);
+  renderer.setClearColor(0xf4f4f2, 1);
   scene.insertBefore(renderer.domElement, scene.firstChild);
   renderer.domElement.classList.add("orbit-canvas");
 
   const threeScene = new THREE.Scene();
-  threeScene.fog = new THREE.FogExp2(0x07080b, 0.018);
 
-  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
-  camera.position.set(0, 14, 36);
+  const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 1000);
+  camera.position.set(0, 12, 32);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -937,29 +934,20 @@ function renderOrbit() {
     controls.update();
   }
 
-  // Lighting — directional fill so stars feel volumetric
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  const keyLight = new THREE.PointLight(0xffffff, 0.7, 100);
-  keyLight.position.set(10, 18, 12);
+  // Flat industrial lighting — matches holomotion MotionStage (ambient 0.85 + one directional 0.6).
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  keyLight.position.set(8, 12, 6);
   threeScene.add(keyLight);
 
-  // Subtle ambient star field (chart background context, not data)
-  const ambientGeom = new THREE.BufferGeometry();
-  const ambientPositions = [];
-  for (let i = 0; i < 380; i += 1) {
-    const r = 38 + Math.random() * 20;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    ambientPositions.push(
-      r * Math.sin(phi) * Math.cos(theta),
-      r * Math.cos(phi),
-      r * Math.sin(phi) * Math.sin(theta),
-    );
-  }
-  ambientGeom.setAttribute("position", new THREE.Float32BufferAttribute(ambientPositions, 3));
-  threeScene.add(new THREE.Points(ambientGeom, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, sizeAttenuation: true, opacity: 0.42, transparent: true })));
+  // Ground grid — 3D analog of the page's 40px grid backdrop.
+  const grid = new THREE.GridHelper(60, 15, 0x111111, 0x111111);
+  grid.material.opacity = 0.12;
+  grid.material.transparent = true;
+  grid.position.y = -6;
+  threeScene.add(grid);
 
-  // Orbit rings (data-ink: thin, low-opacity; mark the orbit shells)
+  // Orbit shells — sharp ink lines, no glow
   const rings = new THREE.Group();
   const ringRadii = [6, 10, 14, 18, 22];
   ringRadii.forEach((r) => {
@@ -970,12 +958,12 @@ function renderOrbit() {
       pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
     }
     const geom = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08 });
+    const mat = new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.18 });
     rings.add(new THREE.Line(geom, mat));
   });
   threeScene.add(rings);
 
-  // Stars — radius from engagement (sqrt scale to keep ratio fidelity), hue from label
+  // Stars — radius from engagement (sqrt scale), color from label (ink/hot).
   const engagementValues = events.map((e) => e.commentCount + e.repostCount);
   const eMin = d3.min(engagementValues) || 0;
   const eMax = d3.max(engagementValues) || 1;
@@ -994,8 +982,7 @@ function renderOrbit() {
     const geom = new THREE.SphereGeometry(size, 24, 24);
     const mat = new THREE.MeshStandardMaterial({
       color,
-      emissive: color.clone().multiplyScalar(0.55),
-      roughness: 0.4,
+      roughness: 0.5,
       metalness: 0.1,
     });
     const mesh = new THREE.Mesh(geom, mat);
@@ -1003,8 +990,7 @@ function renderOrbit() {
     mesh.position.set(Math.cos(angle) * r, yJitter, Math.sin(angle) * r);
     threeScene.add(mesh);
 
-    // Phase 4: planar disc (in the orbit plane) — thickness encodes log(likes).
-    // Open-ended cylinder lying on its side so a top-down view reads as a coin.
+    // Phase 4: planar disc — thickness encodes log(likes), open-ended cylinder lying on its side.
     const likeThickness = Math.max(
       0.05,
       Math.min(1.2, Math.log10((event.likeCount || 0) + 1) * 0.15),
@@ -1013,23 +999,22 @@ function renderOrbit() {
     const discMat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.28,
       side: THREE.DoubleSide,
     });
     const halo = new THREE.Mesh(discGeom, discMat);
     halo.rotation.x = Math.PI / 2;
     mesh.add(halo);
     mesh.userData.halo = halo;
-    mesh.userData.haloBaseOpacity = 0.35;
+    mesh.userData.haloBaseOpacity = 0.28;
 
-    // Phase 5: comet trail — a Line trailing the star along its orbit.
-    // Length grows with |comments − reposts| asymmetry (a coordination tell).
+    // Phase 5: comet trail — ink line, no additive blending, low opacity.
     const asymmetry = Math.abs((event.commentCount || 0) - (event.repostCount || 0));
     const trailSpan = 0.05 + Math.max(0, Math.min(0.25, asymmetry / 200));
     const TRAIL_N = 18;
     const trailGeom = new THREE.BufferGeometry();
     trailGeom.setAttribute("position", new THREE.Float32BufferAttribute(new Array(TRAIL_N * 3).fill(0), 3));
-    const trailMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 });
+    const trailMat = new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.32 });
     const trail = new THREE.Line(trailGeom, trailMat);
     threeScene.add(trail);
     mesh.userData.trail = trail;
@@ -1117,15 +1102,17 @@ function highlightOrbitSelection() {
   const stars = state.orbit.stars;
   if (!stars?.length) return;
   const selected = state.selectedId;
+  const HOT = new THREE.Color(COLORS.hot);
   stars.forEach((mesh) => {
     const isSelected = mesh.userData.event.id === selected;
     mesh.scale.setScalar(isSelected ? 1.6 : 1);
     const halo = mesh.userData.halo;
     if (halo) {
-      const base = mesh.userData.haloBaseOpacity ?? 0.35;
-      halo.material.opacity = isSelected ? Math.min(0.9, base + 0.4) : base;
+      const base = mesh.userData.haloBaseOpacity ?? 0.28;
+      halo.material.opacity = isSelected ? Math.min(0.85, base + 0.4) : base;
+      halo.material.color.copy(isSelected ? HOT : mesh.userData.baseColor);
     }
-    mesh.material.emissiveIntensity = isSelected ? 1.2 : 0.6;
+    mesh.material.color.copy(isSelected ? HOT : mesh.userData.baseColor);
   });
 }
 
