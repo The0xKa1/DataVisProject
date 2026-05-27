@@ -19,22 +19,21 @@ Build a multi-view visual analytics prototype that helps users:
 
 ## Data Direction
 
-Primary candidate: CHECKED, a Chinese COVID-19 fake news dataset.
+Primary dataset: MisBot, a Weibo misinformation and social bot participation dataset.
 
-- Source: https://github.com/cyang03/CHECKED
-- Paper: https://arxiv.org/abs/2010.09029
-- Fit: fact-checked Weibo posts with text, temporal information, reposts, comments, likes, labels, and hashed ids.
-- Scale reported by the paper: 2,104 verified microblogs, 1,868,175 reposts, 1,185,702 comments, and 56,852,736 likes.
-- Terms noted in the paper: academic research only; microblog and user ids are hashed.
-- Local raw data path: `data/raw/checked` (ignored by git).
-- Prototype data path: `public/data/checked_dashboard.json`.
+- Source: https://github.com/whr000001/MisBot
+- Paper: https://arxiv.org/abs/2408.09613
+- Fit: misinformation / verified / trend information instances, repost/comment/attitude participants, user-level bot labels, and bot-score proxy signals.
+- Scale noted by the repository: 23,622 Weibo information instances, 942,430 spread participants, 99,874 human-annotated users, and 407,801 weakly annotated active inference users.
+- Label caution: weakly supervised bot labels are proxy signals only; the system must not present individual accounts as proven malicious.
+- Local raw data path: `data/raw/misbot` (ignored by git).
+- Prototype data path: `public/data/misbot_dashboard.json`.
 
 Backup candidates:
 
-- PHEME rumours/veracity datasets: good for English rumor propagation and conversation structures.
-- FiveThirtyEight/Clemson Russian Troll Tweets: good for coordinated account behavior, weaker for truth labels.
-- CoAID: useful COVID misinformation backup, but propagation structure may be weaker.
-- Avoid FakeNewsNet as the main source unless Twitter API rehydration is proven locally.
+- CHECKED: previous Chinese COVID-19 fake news baseline with Weibo propagation information.
+- VoterFraud2020: useful later as an English Twitter event comparison with suspension and coordination proxies, but not used in the current main build.
+- PHEME / CoAID: fallback options if MisBot data access becomes blocked.
 
 ## View Plan
 
@@ -49,21 +48,21 @@ Backup candidates:
 Run locally:
 
 ```bash
-python3 scripts/build_checked_sample.py
+python3 scripts/build_misbot_dashboard.py --raw data/raw/misbot --out public/data/misbot_dashboard.json
 python3 -m http.server 4173
 ```
 
 Then open `http://localhost:4173/`.
 
-Current prototype uses CHECKED JSON to generate:
+Current prototype uses MisBot JSON to generate:
 
 - dataset-level statistics;
 - monthly fake/real timeline;
 - keyword frequency split by label;
-- microblog-to-actor propagation network;
-- high-activity actor list;
-- repeated text signals;
-- evidence samples with hashed ids.
+- information-to-actor propagation network;
+- high-activity actor list with bot/proxy score;
+- repeated text signals with bot share;
+- evidence samples with short hashed ids.
 
 ## Course Constraints
 

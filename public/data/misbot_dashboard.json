@@ -1,0 +1,34 @@
+{
+  "source": {
+    "name": "MisBot: Weibo Misinformation and Social Bot Participation Dataset",
+    "repository": "https://github.com/whr000001/MisBot",
+    "paper": "https://arxiv.org/abs/2408.09613",
+    "note": "Placeholder schema only. Download MisBot to data/raw/misbot and run scripts/build_misbot_dashboard.py to generate real dashboard data.",
+    "generatedAt": ""
+  },
+  "stats": {
+    "informationInstances": 0,
+    "microblogs": 0,
+    "fake": 0,
+    "real": 0,
+    "comments": 0,
+    "reposts": 0,
+    "attitudes": 0,
+    "actors": 0,
+    "botActors": 0,
+    "humanActors": 0,
+    "unknownActors": 0,
+    "botShare": 0,
+    "dateStart": "",
+    "dateEnd": ""
+  },
+  "timeline": [],
+  "keywords": [],
+  "events": [],
+  "actors": [],
+  "phrases": [],
+  "graph": {
+    "nodes": [],
+    "edges": []
+  }
+}

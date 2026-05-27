@@ -2,8 +2,8 @@
 
 ## Current Phase
 
-Front-end refactored to d3.js (2D charts) + three.js (3D orbit), guided by `docs/design.md`.
-节点 glyph 已从单色圆进化为多通道复合标记（donut + 时刻 notch + actor 双饱和度徽章 + 3D 平面光盘 + 彗尾轨迹）。
+Dataset migration in progress: primary data is switching from CHECKED to MisBot.
+The static d3.js + three.js dashboard now targets bot/proxy participation signals in misinformation diffusion.
 
 ## Confirmed Decisions
 
@@ -11,47 +11,50 @@ Front-end refactored to d3.js (2D charts) + three.js (3D orbit), guided by `docs
 - GitHub remote repository is public: `https://github.com/The0xKa1/DataVisProject`.
 - Final topic: `【文本情报+网络演化】基于社交媒体/群聊文本的“网络水军”与虚假信息协同扩散审计系统`.
 - System framing: exploratory audit and evidence inspection, not automatic accusation.
-- Primary data candidate: CHECKED, a Chinese COVID-19 fake news dataset with Weibo propagation information.
+- Primary data candidate: MisBot, a Weibo misinformation and social bot participation dataset.
 - Frontend first version is a static HTML/CSS/JS dashboard.
-- Raw CHECKED data is stored at `data/raw/checked` and ignored by git.
-- Processed prototype data is generated at `public/data/checked_dashboard.json`.
+- Raw MisBot data should be stored at `data/raw/misbot` and ignored by git.
+- Processed prototype data is generated at `public/data/misbot_dashboard.json`.
+- Weakly supervised bot labels are proxy signals only, not account-level accusations.
 - Full `obsidian-docs/` team-collab structure is not enabled.
 - `docs/handoff/` and the old split docs have been removed.
 
 ## Topic / Dataset / Stack Status
 
 - Topic: confirmed.
-- Dataset: CHECKED downloaded and locally validated.
+- Dataset: MisBot selected; raw MisBot data still needs to be downloaded locally.
 - Frontend stack: static HTML/CSS/JS for first version.
-- Data processing stack: Python script over CHECKED JSON.
+- Data processing stack: Python script over MisBot JSONL.
 - Deployment target: undecided.
 
 ## Data Candidates
 
 | Priority | Dataset | Use |
 | --- | --- | --- |
-| 1 | CHECKED | Main candidate for Chinese misinformation diffusion and propagation analysis. |
-| 2 | PHEME | Backup for English rumor propagation and conversation structures. |
-| 3 | FiveThirtyEight/Clemson Russian Troll Tweets | Backup or comparison for coordinated account behavior. |
-| 4 | CoAID | Backup for COVID misinformation labels and engagement. |
+| 1 | MisBot | Main candidate for Weibo misinformation diffusion and bot participation analysis. |
+| 2 | CHECKED | Previous baseline / fallback for Chinese misinformation diffusion. |
+| 3 | VoterFraud2020 | Later comparison for event-centered Twitter coordination proxies. |
+| 4 | PHEME / CoAID | Backup rumor and COVID misinformation datasets. |
 
 ## Active Tasks
 
-- Improve topology-focused interactions: community filtering, richer ego-network controls, and coordinated burst ranking.
-- Decide whether to keep static frontend or migrate to React/Vite after the first review.
+- Download and unpack MisBot into `data/raw/misbot`.
+- Run `python3 scripts/build_misbot_dashboard.py --raw data/raw/misbot --out public/data/misbot_dashboard.json`.
+- Validate the MisBot dashboard with real events, actor bot scores, and graph edges.
 - Confirm team members and division of work.
 - Keep AI usage, design rationale, and case studies documented in the final report or README sections when needed.
 
 ## Blockers
 
 - Need to avoid committing private, restricted, or non-anonymized raw data.
-- Need to decide how much derived text evidence can be committed in the public repo under academic-use terms.
+- Current `public/data/misbot_dashboard.json` is a schema placeholder until real MisBot raw data is available.
+- Need to decide how much derived text evidence can be committed in the public repo under MisBot privacy guidance.
 
 ## Immediate Focus
 
-1. Review the first prototype at `http://localhost:4173/`.
-2. Add topology-specific views: ego network controls, coordinated burst ranking, and repeated actor overlap.
-3. Decide whether to use CHECKED alone or add FiveThirtyEight/Clemson tweets as a coordinated-behavior comparison.
+1. Download MisBot and build `public/data/misbot_dashboard.json`.
+2. Review the prototype at `http://localhost:4173/` with real MisBot data.
+3. Add topology-specific views: ego network controls, coordinated burst ranking, and repeated actor overlap.
 4. Assign team responsibilities and presentation ownership.
 
 ## Completion Notes
@@ -60,6 +63,9 @@ Front-end refactored to d3.js (2D charts) + three.js (3D orbit), guided by `docs
 - Topic finalized.
 - Candidate datasets explored and ranked.
 - Documentation reduced to two short files per current project preference.
+- Primary dataset changed from CHECKED to MisBot for stronger bot/misinformation alignment.
+- Added `scripts/build_misbot_dashboard.py` to produce the frontend JSON contract from local MisBot raw data.
+- Frontend now loads `public/data/misbot_dashboard.json` and exposes BOT HEAVY filtering, bot/proxy share metrics, bot score actor encoding, attitude counts, and proxy-label caveats.
 - CHECKED downloaded and validated: 2,104 microblogs, 1,185,701 comments, 1,868,174 reposts, 732,444 actors.
 - First static dashboard created with timeline, keyword, network, actor, repeated-text, and evidence views.
 - Frontend design pass repaired stale chart bindings, added loading/empty/error states, keyword/phrase search linking, month filtering, and a canvas-based propagation orbit.
