@@ -114,3 +114,5 @@ npm run build && npm start
 - Glyph evolution (P0–Phase 6 of the static build) preserved in `legacy/src/app.js`.
 - **Phase 7 of the v0 port complete**: Next.js + v0 INTERFACE shell, 8 dashboard panels ported into the Work bento grid, Zustand store, tooltip portal, IntersectionObserver-gated orbit, brush-preserving timeline.
 - **Phase 8 copy**: hero word swapped to MISBOT, Signals reframed as dataset facts, Principles rewritten as audit posture, Colophon credits MisBot/Next.js/d3/three/typography.
+- **Hydration bug fix**: Network, timeline, and orbit chart containers now mount before dashboard data hydrates, so d3/three initialization is not skipped on first load.
+- **Visual impact pass**: keyword and actor bar views replaced with bubble/cloud encodings; orbit now uses scroll progress to shift camera, star separation, and motion tempo.

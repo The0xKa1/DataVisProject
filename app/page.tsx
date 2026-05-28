@@ -3,7 +3,7 @@ import path from "node:path"
 import { SideNav } from "@/components/side-nav"
 import { HeroSection } from "@/components/hero-section"
 import { SignalsSection } from "@/components/signals-section"
-import { WorkSection } from "@/components/work-section"
+import { ScrollytellingSection } from "@/components/scrollytelling/scrollytelling-section"
 import { PrinciplesSection } from "@/components/principles-section"
 import { ColophonSection } from "@/components/colophon-section"
 import { DashboardClient } from "@/components/dashboard/dashboard-client"
@@ -44,7 +44,7 @@ export default async function Page() {
         <HeroSection />
         <SignalsSection />
         <DashboardClient initialData={data}>
-          <WorkSection />
+          <ScrollytellingSection />
         </DashboardClient>
         <PrinciplesSection />
         <ColophonSection />

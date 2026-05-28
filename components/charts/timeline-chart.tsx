@@ -283,17 +283,21 @@ export function TimelineChart() {
     }
   }, [dateRange]);
 
-  if (!data || !rows.length) {
-    return (
-      <div className="h-full w-full animate-pulse bg-card/40 border border-border/30" />
-    );
-  }
   return (
-    <svg
-      ref={svgRef}
-      role="img"
-      aria-label="Monthly diffusion timeline — drag to select a date window"
-      className="w-full h-full"
-    />
+    <div className="relative h-full w-full">
+      <svg
+        ref={svgRef}
+        role="img"
+        aria-label="Monthly diffusion timeline — drag to select a date window"
+        className="w-full h-full"
+      />
+      {(!data || !rows.length) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-card/40 border border-border/30">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
+            {data ? "No monthly rows under current filter." : "Loading timeline ..."}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

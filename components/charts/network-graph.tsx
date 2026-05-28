@@ -394,16 +394,6 @@ export function NetworkGraph() {
       });
   }, [selectedId, data]);
 
-  if (!data || !nodes.length) {
-    return (
-      <div className="relative h-full w-full bg-card/40 border border-border/30 flex items-center justify-center">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
-          {data ? "No microblogs under current filter." : "Loading network …"}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div
       className="relative h-full w-full bg-background/30"
@@ -415,14 +405,23 @@ export function NetworkGraph() {
         aria-label="Force-directed propagation network"
         className="block h-full w-full cursor-grab active:cursor-grabbing"
       />
-      <div className="pointer-events-none absolute left-3 bottom-3 flex border border-border bg-card/70 backdrop-blur-sm font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
-        <span className="border-r border-border px-3 py-1.5">
-          <b className="text-accent font-medium">{fmt.format(nodes.length)}</b> nodes
-        </span>
-        <span className="px-3 py-1.5">
-          <b className="text-accent font-medium">{fmt.format(links.length)}</b> edges
-        </span>
-      </div>
+      {(!data || !nodes.length) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-card/40 border border-border/30">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
+            {data ? "No microblogs under current filter." : "Loading network ..."}
+          </span>
+        </div>
+      )}
+      {data && nodes.length > 0 && (
+        <div className="pointer-events-none absolute left-3 bottom-3 flex border border-border bg-card/70 backdrop-blur-sm font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
+          <span className="border-r border-border px-3 py-1.5">
+            <b className="text-accent font-medium">{fmt.format(nodes.length)}</b> nodes
+          </span>
+          <span className="px-3 py-1.5">
+            <b className="text-accent font-medium">{fmt.format(links.length)}</b> edges
+          </span>
+        </div>
+      )}
     </div>
   );
 }

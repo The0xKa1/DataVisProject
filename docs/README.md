@@ -72,9 +72,9 @@ Work bento grid:
 - METRICS · dataset-level counters with selected case-window context;
 - TIMELINE · monthly fake/real stacked bars + engagement line + d3 brush;
 - NETWORK · d3-force propagation graph with drag, zoom, and selection;
-- ORBIT · three.js engagement starfield with raycast selection;
-- KEYWORDS · keyword frequency split lollipop;
-- ACTORS · high-activity actor bars with fake-share cap;
+- ORBIT · three.js engagement starfield with scroll-driven camera phases and raycast selection;
+- KEYWORDS · keyword bubble cloud with term-size and fake-share encoding;
+- ACTORS · high-activity actor bubble field with engagement size and fake-share rings;
 - PHRASES · repeated text templates with bot-share signal;
 - EVIDENCE · anonymized microblog evidence with sibling list.
 

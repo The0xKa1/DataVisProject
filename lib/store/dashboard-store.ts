@@ -13,6 +13,11 @@ interface DashboardState {
   search: string;
   dateRange: [Date, Date] | null;
   selectedId: string | null;
+  // Scrollytelling override for OrbitScene's camera/orbit phase. When null,
+  // OrbitScene falls back to its own ScrollTrigger. When 0..1, the section
+  // director drives the phase — used while the orbit is hosted inside the
+  // pinned scrollytelling stage (which has no scroll progress of its own).
+  orbitPhase: number | null;
 
   // Setters
   setData: (data: DashboardJSON) => void;
@@ -21,6 +26,7 @@ interface DashboardState {
   setSearch: (search: string) => void;
   setDateRange: (range: [Date, Date] | null) => void;
   setSelected: (id: string | null) => void;
+  setOrbitPhase: (phase: number | null) => void;
   resetFilters: () => void;
 }
 
@@ -32,6 +38,7 @@ export const useDashboardStore = create<DashboardState>()(
     search: "",
     dateRange: null,
     selectedId: null,
+    orbitPhase: null,
 
     setData: (data) => set({ data }),
     setLabel: (label) => set({ label, selectedId: null }),
@@ -39,6 +46,7 @@ export const useDashboardStore = create<DashboardState>()(
     setSearch: (search) => set({ search, selectedId: null }),
     setDateRange: (dateRange) => set({ dateRange, selectedId: null }),
     setSelected: (selectedId) => set({ selectedId }),
+    setOrbitPhase: (orbitPhase) => set({ orbitPhase }),
     resetFilters: () =>
       set({
         label: "all",

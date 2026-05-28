@@ -4,11 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import * as d3 from "d3";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useFilteredEvents } from "@/lib/store/selectors";
 import { COLORS, labelColor } from "@/lib/charts/colors";
 import { eventInteractions } from "@/lib/format";
 import type { EventItem } from "@/lib/charts/types";
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface StarMesh extends THREE.Mesh {
   userData: {
@@ -23,6 +27,7 @@ interface StarMesh extends THREE.Mesh {
     trail?: THREE.Line;
     trailSpan: number;
     trailN: number;
+    orbitIndex: number;
     currentAngle: number;
   };
 }
@@ -39,14 +44,19 @@ interface OrbitRefs {
   raycaster: THREE.Raycaster;
   pointer: THREE.Vector2;
   pointerHandler: (event: PointerEvent) => void;
+  scrollProgress: number;
+  scrollTrigger: { kill: () => void } | null;
 }
 
 const TRAIL_N = 18;
 const STAR_LIMIT = 24;
+const STORY_STEPS = ["OVERVIEW", "AMPLIFICATION", "CLOSE READ"];
 
 export function OrbitScene() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const refsRef = useRef<OrbitRefs | null>(null);
+  const storyBarRef = useRef<HTMLDivElement | null>(null);
+  const storyStepRef = useRef<HTMLSpanElement | null>(null);
   const data = useDashboardStore((s) => s.data);
   const events = useFilteredEvents();
   const selectedId = useDashboardStore((s) => s.selectedId);
@@ -161,8 +171,35 @@ export function OrbitScene() {
       raycaster,
       pointer,
       pointerHandler,
+      scrollProgress: 0,
+      scrollTrigger: null,
     };
     refsRef.current = orbitRefs;
+
+    const updateScrollState = (progress: number) => {
+      const clamped = Math.max(0, Math.min(1, progress));
+      orbitRefs.scrollProgress = clamped;
+      if (storyBarRef.current) {
+        storyBarRef.current.style.transform = `scaleX(${clamped})`;
+      }
+      if (storyStepRef.current) {
+        const index = Math.min(
+          STORY_STEPS.length - 1,
+          Math.floor(clamped * STORY_STEPS.length)
+        );
+        storyStepRef.current.textContent = STORY_STEPS[index];
+      }
+    };
+    updateScrollState(0);
+
+    const trigger = container.closest("article") ?? container;
+    orbitRefs.scrollTrigger = ScrollTrigger.create({
+      trigger,
+      start: "top 82%",
+      end: "bottom 18%",
+      scrub: true,
+      onUpdate: (self) => updateScrollState(self.progress),
+    });
 
     // IntersectionObserver gates rendering when off-screen
     const io = new IntersectionObserver(
@@ -177,28 +214,49 @@ export function OrbitScene() {
       const r = refsRef.current;
       if (!r) return;
       if (r.isVisible) {
+        const storePhase = useDashboardStore.getState().orbitPhase;
+        const p = storePhase ?? r.scrollProgress;
+        if (storePhase != null) updateScrollState(storePhase);
+        const eased = p * p * (3 - 2 * p);
+        const cameraAngle = eased * Math.PI * 1.15;
+        r.camera.position.set(
+          Math.sin(cameraAngle) * 10,
+          14 - eased * 8 + Math.sin(eased * Math.PI) * 2.4,
+          34 - eased * 12
+        );
+        r.controls.target.set(0, -1.2 + eased * 1.8, 0);
+        r.controls.autoRotateSpeed = 0.35 + eased * 1.2;
+
         r.stars.forEach((mesh, _id, _map) => {
-          let i = 0;
-          // angle index ordering is irrelevant for the per-star phase
-          i = mesh.userData.trailN;
-          const speed = 0.00008 * (1 + i * 0.04);
-          const a = mesh.userData.angle + time * speed;
+          const i = mesh.userData.orbitIndex;
+          const lane = mesh.userData.event.label === "fake" ? 1 : -1;
+          const speed = 0.00006 * (1 + i * 0.035) * (1 + eased * 2.2);
+          const radius =
+            mesh.userData.radius * (0.78 + eased * 0.32) +
+            Math.sin(eased * Math.PI) * (2.2 + (i % 4) * 0.35);
+          const y =
+            mesh.userData.yJitter +
+            lane * eased * 2.8 +
+            Math.sin(time * 0.0004 + i) * eased * 0.28;
+          const a = mesh.userData.angle + time * speed + eased * 1.35 + lane * eased * 0.22;
           mesh.userData.currentAngle = a;
-          mesh.position.x = Math.cos(a) * mesh.userData.radius;
-          mesh.position.z = Math.sin(a) * mesh.userData.radius;
+          mesh.position.x = Math.cos(a) * radius;
+          mesh.position.y = y;
+          mesh.position.z = Math.sin(a) * radius;
+          if (mesh.userData.halo) {
+            mesh.userData.halo.scale.setScalar(1 + eased * 0.28);
+          }
           const trail = mesh.userData.trail;
           if (trail) {
             const N = mesh.userData.trailN;
-            const span = mesh.userData.trailSpan;
-            const rad = mesh.userData.radius;
-            const y = mesh.userData.yJitter;
+            const span = mesh.userData.trailSpan * (1 + eased * 1.7);
             const positions = (trail.geometry.attributes.position as THREE.BufferAttribute)
               .array as Float32Array;
             for (let k = 0; k < N; k += 1) {
               const lagAngle = a - (k / (N - 1)) * span;
-              positions[k * 3] = Math.cos(lagAngle) * rad;
+              positions[k * 3] = Math.cos(lagAngle) * radius;
               positions[k * 3 + 1] = y;
-              positions[k * 3 + 2] = Math.sin(lagAngle) * rad;
+              positions[k * 3 + 2] = Math.sin(lagAngle) * radius;
             }
             trail.geometry.attributes.position.needsUpdate = true;
           }
@@ -212,6 +270,7 @@ export function OrbitScene() {
 
     return () => {
       cancelAnimationFrame(orbitRefs.raf);
+      orbitRefs.scrollTrigger?.kill();
       io.disconnect();
       ro.disconnect();
       renderer.domElement.removeEventListener("pointerdown", pointerHandler);
@@ -293,6 +352,7 @@ export function OrbitScene() {
           size,
           trailSpan: 0,
           trailN: TRAIL_N,
+          orbitIndex: i,
           currentAngle: angle,
         };
         newMesh.position.set(
@@ -356,6 +416,7 @@ export function OrbitScene() {
         mesh.userData.angle = angle;
         mesh.userData.radius = radius;
         mesh.userData.yJitter = yJitter;
+        mesh.userData.orbitIndex = i;
       }
     });
   }, [topEvents]);
@@ -388,19 +449,13 @@ export function OrbitScene() {
     r.controls.autoRotate = autoRotate;
   }, [autoRotate]);
 
-  if (!data) {
-    return (
-      <div className="h-full w-full bg-card/30 border border-border/30 animate-pulse" />
-    );
-  }
-
   return (
     <div className="relative h-full w-full" data-lenis-prevent>
       <div ref={containerRef} className="absolute inset-0" />
-      {!topEvents.length && (
-        <div className="absolute inset-0 flex items-center justify-center">
+      {(!data || !topEvents.length) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-card/30 border border-border/30">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
-            No microblogs under current filter.
+            {data ? "No microblogs under current filter." : "Loading orbit ..."}
           </span>
         </div>
       )}
@@ -408,6 +463,21 @@ export function OrbitScene() {
         <span>Stars · top microblogs</span>
         <span>Radius · engagement</span>
         <span className="hidden md:inline">Disc · log(likes) · Trail · |Δ c−r|</span>
+      </div>
+      <div className="absolute left-3 bottom-3 w-[52%] border border-border bg-card/70 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur-sm pointer-events-none">
+        <div className="flex items-center justify-between gap-3">
+          <span>Scroll phase</span>
+          <span ref={storyStepRef} className="text-accent">
+            OVERVIEW
+          </span>
+        </div>
+        <div className="mt-2 h-px w-full bg-border/60">
+          <div
+            ref={storyBarRef}
+            className="h-px origin-left bg-accent"
+            style={{ transform: "scaleX(0)" }}
+          />
+        </div>
       </div>
       <label className="absolute right-3 top-3 flex items-center gap-2 border border-border bg-card/70 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground cursor-pointer hover:text-foreground backdrop-blur-sm">
         <input

@@ -5,12 +5,19 @@ import * as d3 from "d3";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useTooltip } from "@/lib/store/tooltip-store";
 import { COLORS } from "@/lib/charts/colors";
-import { compactFmt, escapeHTML, fmt } from "@/lib/format";
+import { escapeHTML, fmt } from "@/lib/format";
 import type { KeywordRow } from "@/lib/charts/types";
 
-const W = 720;
-const H = 470;
-const MARGIN = { top: 24, right: 64, bottom: 28, left: 110 };
+const W = 420;
+const H = 620;
+const CENTER = { x: W / 2, y: H / 2 + 6 };
+
+interface KeywordBubble extends KeywordRow, d3.SimulationNodeDatum {
+  order: number;
+  r: number;
+  fontSize: number;
+  fakeShare: number;
+}
 
 export function KeywordsChart() {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -21,138 +28,144 @@ export function KeywordsChart() {
   useEffect(() => {
     const svgEl = svgRef.current;
     if (!svgEl || !data || !data.keywords.length) return;
-    const rows: KeywordRow[] = data.keywords.slice(0, 16);
-    const innerW = W - MARGIN.left - MARGIN.right;
-    const innerH = H - MARGIN.top - MARGIN.bottom;
+
+    const rows = data.keywords.slice(0, 22);
+    const totalMax = d3.max(rows, (d) => d.total) || 1;
+    const rScale = d3.scaleSqrt().domain([0, totalMax]).range([18, 56]);
+    const fontScale = d3.scaleSqrt().domain([0, totalMax]).range([10, 22]);
+
+    const nodes: KeywordBubble[] = rows.map((d, index) => {
+      const fakeShare = d.total ? d.fake / d.total : 0;
+      const angle = index * 2.3999632297;
+      const radial = 20 + Math.sqrt(index) * 22;
+      return {
+        ...d,
+        order: index,
+        fakeShare,
+        r: rScale(d.total),
+        fontSize: fontScale(d.total),
+        x: CENTER.x + Math.cos(angle) * radial + (fakeShare - 0.5) * 48,
+        y: CENTER.y + Math.sin(angle) * radial,
+      };
+    });
+
+    const simulation = d3
+      .forceSimulation<KeywordBubble>(nodes)
+      .force("x", d3.forceX<KeywordBubble>((d) => CENTER.x + (d.fakeShare - 0.5) * 86).strength(0.08))
+      .force("y", d3.forceY<KeywordBubble>((d) => CENTER.y + ((d.order % 3) - 1) * 16).strength(0.07))
+      .force("collide", d3.forceCollide<KeywordBubble>((d) => d.r + 4).iterations(4))
+      .stop();
+
+    for (let i = 0; i < 260; i += 1) simulation.tick();
 
     const svg = d3
       .select(svgEl)
       .attr("viewBox", `0 0 ${W} ${H}`)
-      .attr("preserveAspectRatio", "none");
+      .attr("preserveAspectRatio", "xMidYMid meet");
     svg.selectAll("*").remove();
-    const g = svg
-      .append("g")
-      .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
 
-    const x = d3
-      .scaleLinear()
-      .domain([0, d3.max(rows, (d) => Math.max(d.fake, d.real)) || 1])
-      .nice()
-      .range([0, innerW]);
-    const y = d3
-      .scaleBand<string>()
-      .domain(rows.map((d) => d.keyword))
-      .range([0, innerH])
-      .padding(0.18);
+    const defs = svg.append("defs");
+    const radial = defs.append("radialGradient").attr("id", "keyword-bubble-hot");
+    radial.append("stop").attr("offset", "0%").attr("stop-color", COLORS.hot).attr("stop-opacity", 0.72);
+    radial.append("stop").attr("offset", "68%").attr("stop-color", COLORS.hot).attr("stop-opacity", 0.2);
+    radial.append("stop").attr("offset", "100%").attr("stop-color", COLORS.hot).attr("stop-opacity", 0.02);
 
-    g.append("g")
-      .selectAll<SVGTextElement, KeywordRow>("text.kw-label")
-      .data(rows)
-      .join("text")
-      .attr("class", "kw-label")
-      .attr("x", -12)
-      .attr("y", (d) => (y(d.keyword) ?? 0) + y.bandwidth() / 2 + 4)
-      .attr("text-anchor", "end")
-      .attr("fill", COLORS.ink)
-      .style("font-family", "var(--font-mono)")
-      .style("font-size", "11px")
-      .style("cursor", "pointer")
-      .text((d) => d.keyword)
-      .on("click", (_, d) => setSearch(d.keyword));
+    const g = svg.append("g");
 
-    const rowG = g
-      .selectAll<SVGGElement, KeywordRow>("g.kw-row")
-      .data(rows)
+    g.append("circle")
+      .attr("cx", CENTER.x)
+      .attr("cy", CENTER.y)
+      .attr("r", 168)
+      .attr("fill", "none")
+      .attr("stroke", COLORS.ruleFaint)
+      .attr("stroke-dasharray", "2 8");
+
+    g.append("circle")
+      .attr("cx", CENTER.x)
+      .attr("cy", CENTER.y)
+      .attr("r", 86)
+      .attr("fill", "none")
+      .attr("stroke", COLORS.ruleFaint)
+      .attr("stroke-dasharray", "1 6");
+
+    const bubble = g
+      .selectAll<SVGGElement, KeywordBubble>("g.keyword-bubble")
+      .data(nodes, (d) => d.keyword)
       .join("g")
-      .attr("class", "kw-row")
-      .attr("transform", (d) => `translate(0,${y(d.keyword) ?? 0})`)
+      .attr("class", "keyword-bubble")
+      .attr("transform", (d) => `translate(${d.x ?? CENTER.x},${d.y ?? CENTER.y})`)
       .style("cursor", "pointer")
       .on("click", (_, d) => setSearch(d.keyword))
       .on("mousemove", (event, d) => {
+        const fakeShare = d.total ? ((d.fake / d.total) * 100).toFixed(1) : "0.0";
         show(
           event,
           `<b>${escapeHTML(d.keyword)}</b>
-            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">real</span><b>${fmt.format(d.real)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake</span><b>${fmt.format(d.fake)}</b></div>`
+            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">total</span><b>${fmt.format(d.total)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">real</span><b>${fmt.format(d.real)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake</span><b>${fmt.format(d.fake)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake share</span><b>${fakeShare}%</b></div>`
         );
       })
       .on("mouseleave", hide);
 
-    rowG
-      .append("line")
-      .attr("class", "kw-track")
-      .attr("x1", 0)
-      .attr("x2", innerW)
-      .attr("y1", y.bandwidth() / 2)
-      .attr("y2", y.bandwidth() / 2)
-      .attr("stroke", COLORS.ruleFaint)
-      .attr("stroke-dasharray", "1 3");
+    bubble
+      .append("circle")
+      .attr("r", (d) => d.r)
+      .attr("fill", (d) =>
+        d.fakeShare > 0.45 ? "url(#keyword-bubble-hot)" : COLORS.coolSoft
+      )
+      .attr("stroke", (d) => (d.fakeShare > 0.45 ? COLORS.hot : COLORS.ruleSoft))
+      .attr("stroke-width", (d) => 0.8 + d.fakeShare * 1.4);
 
-    rowG
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", (d) => x(d.real))
-      .attr("y1", y.bandwidth() / 2 - 3)
-      .attr("y2", y.bandwidth() / 2 - 3)
-      .attr("stroke", COLORS.ink)
-      .attr("stroke-width", 1.2);
+    bubble
+      .append("circle")
+      .attr("r", (d) => d.r * (0.54 + d.fakeShare * 0.28))
+      .attr("fill", "none")
+      .attr("stroke", (d) => (d.fakeShare > 0.45 ? COLORS.hot : COLORS.ink))
+      .attr("stroke-opacity", (d) => 0.2 + d.fakeShare * 0.55)
+      .attr("stroke-width", 1);
 
-    rowG
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", (d) => x(d.fake))
-      .attr("y1", y.bandwidth() / 2 + 3)
-      .attr("y2", y.bandwidth() / 2 + 3)
-      .attr("stroke", COLORS.hot)
-      .attr("stroke-width", 1.2);
-
-    rowG
-      .append("rect")
-      .attr("x", (d) => x(d.real) - 4)
-      .attr("y", y.bandwidth() / 2 - 7)
-      .attr("width", 8)
-      .attr("height", 6)
-      .attr("fill", COLORS.ink);
-
-    rowG
-      .append("rect")
-      .attr("x", (d) => x(d.fake) - 4)
-      .attr("y", y.bandwidth() / 2 + 1)
-      .attr("width", 8)
-      .attr("height", 6)
-      .attr("fill", COLORS.hot);
-
-    rowG
+    bubble
       .append("text")
-      .attr("x", innerW + 10)
-      .attr("y", y.bandwidth() / 2 + 4)
+      .attr("text-anchor", "middle")
+      .attr("dy", "-0.08em")
+      .attr("fill", COLORS.ink)
+      .style("font-family", "var(--font-mono)")
+      .style("font-size", (d) => `${Math.max(9, d.fontSize - Math.max(0, d.keyword.length - 5) * 1.15)}px`)
+      .style("font-weight", "600")
+      .style("letter-spacing", "0.03em")
+      .style("pointer-events", "none")
+      .text((d) => (d.keyword.length > 7 ? `${d.keyword.slice(0, 7)}...` : d.keyword));
+
+    bubble
+      .append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "1.55em")
       .attr("fill", COLORS.muted)
       .style("font-family", "var(--font-mono)")
-      .style("font-size", "10px")
-      .style("letter-spacing", "0.04em")
+      .style("font-size", "9px")
+      .style("letter-spacing", "0.08em")
+      .style("pointer-events", "none")
       .text((d) => fmt.format(d.total));
 
-    g.append("g")
-      .attr("transform", `translate(0,${innerH})`)
-      .call(
-        d3
-          .axisBottom(x)
-          .ticks(4)
-          .tickFormat((d) => compactFmt.format(d as number))
-      )
-      .call((sel) => sel.select(".domain").attr("stroke", COLORS.rule))
-      .call((sel) => sel.selectAll("line").attr("stroke", COLORS.rule))
-      .call((sel) =>
-        sel
-          .selectAll("text")
-          .attr("fill", COLORS.muted)
-          .style("font-family", "var(--font-mono)")
-          .style("font-size", "10px")
-          .style("text-transform", "uppercase")
-          .style("letter-spacing", "0.08em")
-      );
+    const legend = svg
+      .append("g")
+      .attr("transform", "translate(24,26)")
+      .style("font-family", "var(--font-mono)")
+      .style("font-size", "9px")
+      .style("letter-spacing", "0.18em")
+      .style("text-transform", "uppercase");
+
+    legend.append("text").attr("fill", COLORS.muted).text("Bubble area = total term hits");
+    legend
+      .append("text")
+      .attr("y", 18)
+      .attr("fill", COLORS.hot)
+      .text("Warmer = higher fake share");
 
     return () => {
+      simulation.stop();
       svg.selectAll("*").remove();
     };
   }, [data, setSearch, show, hide]);
@@ -162,7 +175,7 @@ export function KeywordsChart() {
     <svg
       ref={svgRef}
       role="img"
-      aria-label="Keyword frequency split — real vs fake"
+      aria-label="Keyword bubble cloud — size = total frequency, color = fake share"
       className="w-full h-full"
     />
   );
