@@ -16,37 +16,41 @@ export function PrinciplesSection() {
     {
       number: "01",
       titleParts: [
-        { text: "INTERFACE", highlight: true },
-        { text: " MINIMALISM", highlight: false },
+        { text: "EXPLORATORY", highlight: true },
+        { text: " · NOT ACCUSATION", highlight: false },
       ],
-      description: "Reduce until only the essential remains. Every element earns its place.",
+      description:
+        "Coordination patterns can suggest where to look. They never prove who acted. Treat every signal as a question, not a verdict.",
       align: "left",
     },
     {
       number: "02",
       titleParts: [
-        { text: "SYSTEMS", highlight: true },
-        { text: " OVER SCREENS", highlight: false },
+        { text: "SIGNALS", highlight: true },
+        { text: " OVER LABELS", highlight: false },
       ],
-      description: "Design behaviors, not just layouts. Build logic that scales.",
+      description:
+        "Bot scores are weak proxies. Bursts, repeated phrases, and shared links are the actual evidence. Show the structure; let the user judge.",
       align: "right",
     },
     {
       number: "03",
       titleParts: [
-        { text: "CONTROLLED ", highlight: false },
-        { text: "TENSION", highlight: true },
+        { text: "PROXY LABELS · ", highlight: false },
+        { text: "NOT TRUTH", highlight: true },
       ],
-      description: "Balance between restraint and expression. Confidence without excess.",
+      description:
+        "MisBot's 407,801 weakly-annotated users are inferred, not confirmed. Surface the labels; tag them visibly as proxy; never treat them as ground truth.",
       align: "left",
     },
     {
       number: "04",
       titleParts: [
-        { text: "SIGNAL ", highlight: false },
-        { text: "CLARITY", highlight: true },
+        { text: "EVIDENCE · ", highlight: false },
+        { text: "ANONYMIZED", highlight: true },
       ],
-      description: "Communication that cuts through noise. Precision in every interaction.",
+      description:
+        "User IDs are SHA-256 hashed before they touch the dashboard. Microblog text is truncated. The audit operates on shapes, not identities.",
       align: "right",
     },
   ]
@@ -94,7 +98,7 @@ export function PrinciplesSection() {
       {/* Section header */}
       <div ref={headerRef} className="mb-24">
         <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">03 / Principles</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">HOW WE WORK</h2>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">AUDIT POSTURE</h2>
       </div>
 
       {/* Staggered principles */}

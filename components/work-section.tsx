@@ -1,61 +1,103 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { cn } from "@/lib/utils"
+import { useEffect, useRef } from "react"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
+import { ChartCard } from "@/components/dashboard/chart-card"
+import { MetricsTile } from "@/components/charts/metrics-tile"
+import { TimelineChart } from "@/components/charts/timeline-chart"
+import { NetworkGraph } from "@/components/charts/network-graph"
+import { OrbitScene } from "@/components/charts/orbit-scene"
+import { KeywordsChart } from "@/components/charts/keywords-chart"
+import { ActorsChart } from "@/components/charts/actors-chart"
+import { PhrasesList } from "@/components/charts/phrases-list"
+import { EvidenceCard } from "@/components/charts/evidence-card"
 
 gsap.registerPlugin(ScrollTrigger)
 
-const experiments = [
+// Mapping of dashboard panels onto the bento grid.
+// Total: 4 cols x ~16 rows. Each "row" = 60px (auto-rows below).
+const panels = [
   {
-    title: "Project Lattice",
-    medium: "Interface Study",
-    description: "Structural framework for adaptive layouts in dynamic content systems.",
-    span: "col-span-2 row-span-2",
+    key: "network",
+    number: "02",
+    category: "Network · Diffusion",
+    title: "Force-directed propagation",
+    description:
+      "Microblog squares + actor splits · drag to rearrange · click a node to focus evidence",
+    span: "col-span-2 row-span-7",
+    persistHover: true,
+    Component: NetworkGraph,
   },
   {
-    title: "Signal Field",
-    medium: "Agent Orchestration",
-    description: "Autonomous coordination layer for multi-agent environments.",
-    span: "col-span-1 row-span-1",
+    key: "timeline",
+    number: "03",
+    category: "Timeline · Temporal",
+    title: "Monthly diffusion",
+    description:
+      "Stacked bars · fake (orange) over real (ink) · engagement line right axis · drag to filter date window",
+    span: "col-span-2 row-span-4",
+    Component: TimelineChart,
   },
   {
-    title: "Silent Agent",
-    medium: "Visual System",
-    description: "Non-intrusive interface patterns for ambient computing.",
-    span: "col-span-1 row-span-2",
+    key: "orbit",
+    number: "04",
+    category: "Orbit · 3D Starfield",
+    title: "Engagement orbit",
+    description:
+      "Top microblogs as stars · radius = engagement · disc = log(likes) · drag to rotate",
+    span: "col-span-2 row-span-7",
+    Component: OrbitScene,
   },
   {
-    title: "Noir Grid",
-    medium: "Typography",
-    description: "High-contrast typographic system for editorial interfaces.",
-    span: "col-span-1 row-span-1",
+    key: "keywords",
+    number: "05",
+    category: "Keywords · Intensity",
+    title: "Term frequency split",
+    description: "Real vs fake share per keyword · click to search",
+    span: "col-span-1 row-span-7",
+    Component: KeywordsChart,
   },
   {
-    title: "Echo Chamber",
-    medium: "Audio-Visual",
-    description: "Generative soundscapes mapped to interface interactions.",
-    span: "col-span-2 row-span-1",
+    key: "actors",
+    number: "06",
+    category: "Actors · Coordination",
+    title: "High-activity accounts",
+    description: "Bar length = total engagement · orange cap = fake share",
+    span: "col-span-1 row-span-7",
+    Component: ActorsChart,
   },
   {
-    title: "Void Protocol",
-    medium: "Experimental",
-    description: "Negative space as primary interaction medium.",
-    span: "col-span-1 row-span-1",
+    key: "phrases",
+    number: "07",
+    category: "Phrases · Templates",
+    title: "Repeated text signals",
+    description: "Re-used phrases · potential coordination templates",
+    span: "col-span-2 row-span-6",
+    Component: PhrasesList,
   },
-]
+  {
+    key: "evidence",
+    number: "08",
+    category: "Evidence · Sample",
+    title: "Anonymized evidence",
+    description: "Selected microblog text · click sibling rows to switch",
+    span: "col-span-2 row-span-6",
+    Component: EvidenceCard,
+  },
+] as const
 
 export function WorkSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const metricsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!sectionRef.current || !headerRef.current || !gridRef.current) return
 
     const ctx = gsap.context(() => {
-      // Header slide in from left
+      // Header slide-in from left — verbatim from v0 WorkSection
       gsap.fromTo(
         headerRef.current,
         { x: -60, opacity: 0 },
@@ -72,6 +114,26 @@ export function WorkSection() {
         },
       )
 
+      // Metrics row fade-up
+      if (metricsRef.current) {
+        gsap.fromTo(
+          metricsRef.current,
+          { y: 30, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.7,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: metricsRef.current,
+              start: "top 90%",
+              toggleActions: "play none none reverse",
+            },
+          },
+        )
+      }
+
+      // Chart cards stagger fade-up — same pattern as v0
       const cards = gridRef.current?.querySelectorAll("article")
       if (cards && cards.length > 0) {
         gsap.set(cards, { y: 60, opacity: 0 })
@@ -79,11 +141,11 @@ export function WorkSection() {
           y: 0,
           opacity: 1,
           duration: 0.8,
-          stagger: 0.1,
+          stagger: 0.08,
           ease: "power3.out",
           scrollTrigger: {
             trigger: gridRef.current,
-            start: "top 90%",
+            start: "top 88%",
             toggleActions: "play none none reverse",
           },
         })
@@ -94,131 +156,58 @@ export function WorkSection() {
   }, [])
 
   return (
-    <section ref={sectionRef} id="work" className="relative py-32 pl-6 md:pl-28 pr-6 md:pr-12">
+    <section
+      ref={sectionRef}
+      id="work"
+      className="relative py-28 md:py-32 pl-6 md:pl-28 pr-6 md:pr-12"
+    >
       {/* Section header */}
-      <div ref={headerRef} className="mb-16 flex items-end justify-between">
+      <div ref={headerRef} className="mb-12 md:mb-16 flex items-end justify-between gap-6">
         <div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">02 / Experiments</span>
-          <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">SELECTED WORK</h2>
+          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">
+            02 / Experiments
+          </span>
+          <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
+            DIFFUSION AUDIT
+          </h2>
         </div>
         <p className="hidden md:block max-w-xs font-mono text-xs text-muted-foreground text-right leading-relaxed">
-          Studies across interface design, agent systems, and visual computation.
+          Eight coordinated views over Weibo misinformation diffusion. Brush time, filter
+          labels, isolate bot-heavy bursts, drill into anonymized evidence.
         </p>
       </div>
 
-      {/* Asymmetric grid */}
+      {/* Metrics strip */}
+      <div ref={metricsRef} className="mb-6 md:mb-8">
+        <MetricsTile />
+      </div>
+
+      {/* Bento grid */}
       <div
         ref={gridRef}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 auto-rows-[180px] md:auto-rows-[200px]"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 auto-rows-[60px]"
       >
-        {experiments.map((experiment, index) => (
-          <WorkCard key={index} experiment={experiment} index={index} persistHover={index === 0} />
-        ))}
+        {panels.map((p, i) => {
+          const C = p.Component
+          // Reuse the v0 WorkSection's "persistHover" trick on the lead Network panel
+          const persistHover = "persistHover" in p ? p.persistHover : false
+          return (
+            <ChartCard
+              key={p.key}
+              span={p.span}
+              number={p.number}
+              category={p.category}
+              title={p.title}
+              description={p.description}
+              index={i}
+              persistHover={persistHover}
+              contentClassName={p.key === "phrases" ? "p-0" : undefined}
+            >
+              <C />
+            </ChartCard>
+          )
+        })}
       </div>
     </section>
-  )
-}
-
-function WorkCard({
-  experiment,
-  index,
-  persistHover = false,
-}: {
-  experiment: {
-    title: string
-    medium: string
-    description: string
-    span: string
-  }
-  index: number
-  persistHover?: boolean
-}) {
-  const [isHovered, setIsHovered] = useState(false)
-  const cardRef = useRef<HTMLElement>(null)
-  const [isScrollActive, setIsScrollActive] = useState(false)
-
-  useEffect(() => {
-    if (!persistHover || !cardRef.current) return
-
-    const ctx = gsap.context(() => {
-      ScrollTrigger.create({
-        trigger: cardRef.current,
-        start: "top 80%",
-        onEnter: () => setIsScrollActive(true),
-      })
-    }, cardRef)
-
-    return () => ctx.revert()
-  }, [persistHover])
-
-  const isActive = isHovered || isScrollActive
-
-  return (
-    <article
-      ref={cardRef}
-      className={cn(
-        "group relative border border-border/40 p-5 flex flex-col justify-between transition-all duration-500 cursor-pointer overflow-hidden",
-        experiment.span,
-        isActive && "border-accent/60",
-      )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Background layer */}
-      <div
-        className={cn(
-          "absolute inset-0 bg-accent/5 transition-opacity duration-500",
-          isActive ? "opacity-100" : "opacity-0",
-        )}
-      />
-
-      {/* Content */}
-      <div className="relative z-10">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {experiment.medium}
-        </span>
-        <h3
-          className={cn(
-            "mt-3 font-[var(--font-bebas)] text-2xl md:text-4xl tracking-tight transition-colors duration-300",
-            isActive ? "text-accent" : "text-foreground",
-          )}
-        >
-          {experiment.title}
-        </h3>
-      </div>
-
-      {/* Description - reveals on hover */}
-      <div className="relative z-10">
-        <p
-          className={cn(
-            "font-mono text-xs text-muted-foreground leading-relaxed transition-all duration-500 max-w-[280px]",
-            isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
-          )}
-        >
-          {experiment.description}
-        </p>
-      </div>
-
-      {/* Index marker */}
-      <span
-        className={cn(
-          "absolute bottom-4 right-4 font-mono text-[10px] transition-colors duration-300",
-          isActive ? "text-accent" : "text-muted-foreground/40",
-        )}
-      >
-        {String(index + 1).padStart(2, "0")}
-      </span>
-
-      {/* Corner line */}
-      <div
-        className={cn(
-          "absolute top-0 right-0 w-12 h-12 transition-all duration-500",
-          isActive ? "opacity-100" : "opacity-0",
-        )}
-      >
-        <div className="absolute top-0 right-0 w-full h-[1px] bg-accent" />
-        <div className="absolute top-0 right-0 w-[1px] h-full bg-accent" />
-      </div>
-    </article>
   )
 }

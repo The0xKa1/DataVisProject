@@ -9,29 +9,29 @@ gsap.registerPlugin(ScrollTrigger)
 
 const signals = [
   {
-    date: "2025.06.10",
-    title: "Signal Field",
-    note: "New interface paradigm for ambient computing environments.",
+    date: "MisBot · 2024",
+    title: "23,622 instances",
+    note: "Weibo information instances spanning misinformation, verified posts, and trending claims.",
   },
   {
-    date: "2025.05.28",
-    title: "Silent Agent",
-    note: "Orchestration layer for autonomous design systems.",
+    date: "942,430 spread participants",
+    title: "Diffusion edges",
+    note: "Each repost, comment, or attitude on a participating microblog becomes a graph edge.",
   },
   {
-    date: "2025.05.15",
-    title: "Noir Grid",
-    note: "Typographic system for editorial interfaces.",
+    date: "99,874 annotated",
+    title: "User labels",
+    note: "Hand-annotated bot/human/unknown labels on the core actor set; remainder are weak proxies.",
   },
   {
-    date: "2025.04.30",
-    title: "Project Lattice",
-    note: "Structural framework for adaptive layouts.",
+    date: "Hashed evidence",
+    title: "Anonymized text",
+    note: "User IDs SHA-256 hashed; evidence text truncated. No raw account names committed.",
   },
   {
-    date: "2025.04.12",
-    title: "Echo Chamber",
-    note: "Audio-visual synthesis in browser environments.",
+    date: "Exploratory framing",
+    title: "Signals, not verdicts",
+    note: "Bot scores are proxy indicators only. The system never accuses any account of malicious intent.",
   },
 ]
 
@@ -135,8 +135,8 @@ export function SignalsSection() {
 
       {/* Section header */}
       <div ref={headerRef} className="mb-16 pr-6 md:pr-12">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / Signals</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">WHAT&apos;S NEW</h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / Dataset</span>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">SOURCE &amp; SCALE</h2>
       </div>
 
       {/* Horizontal scroll container */}

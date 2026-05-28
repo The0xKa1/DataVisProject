@@ -45,24 +45,40 @@ Backup candidates:
 
 ## First Prototype
 
-Run locally:
+Run locally (the front-end is a Next.js app — Node 20+ recommended):
 
 ```bash
-python3 scripts/build_misbot_dashboard.py --raw data/raw/misbot --out public/data/misbot_dashboard.json
-python3 -m http.server 4173
+npm install
+npm run dev
 ```
 
-Then open `http://localhost:4173/`.
+Then open `http://localhost:3000/`.
 
-Current prototype uses MisBot JSON to generate:
+If you have raw MisBot data, regenerate the dashboard JSON first:
 
-- dataset-level statistics;
-- monthly fake/real timeline;
-- keyword frequency split by label;
-- information-to-actor propagation network;
-- high-activity actor list with bot/proxy score;
-- repeated text signals with bot share;
-- evidence samples with short hashed ids.
+```bash
+python3 scripts/build_misbot_dashboard.py \
+  --raw data/raw/misbot \
+  --out public/data/misbot_dashboard.json
+```
+
+When `public/data/misbot_dashboard.json` is still the empty placeholder schema
+(the default for first-clone), the app automatically falls back to the
+populated `public/data/checked_dashboard.json` so the dashboard is never blank.
+
+Current dashboard renders eight coordinated panels inside the v0 INTERFACE
+Work bento grid:
+
+- METRICS · dataset-level counters with selected case-window context;
+- TIMELINE · monthly fake/real stacked bars + engagement line + d3 brush;
+- NETWORK · d3-force propagation graph with drag, zoom, and selection;
+- ORBIT · three.js engagement starfield with raycast selection;
+- KEYWORDS · keyword frequency split lollipop;
+- ACTORS · high-activity actor bars with fake-share cap;
+- PHRASES · repeated text templates with bot-share signal;
+- EVIDENCE · anonymized microblog evidence with sibling list.
+
+The legacy static d3 + three.js build is archived under `legacy/`.
 
 ## Course Constraints
 

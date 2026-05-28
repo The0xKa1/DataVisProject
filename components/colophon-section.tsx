@@ -76,17 +76,35 @@ export function ColophonSection() {
       {/* Section header */}
       <div ref={headerRef} className="mb-16">
         <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">04 / Colophon</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">CREDITS</h2>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">COLOPHON</h2>
       </div>
 
       {/* Multi-column layout */}
       <div ref={gridRef} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 md:gap-12">
-        {/* Design */}
+        {/* Dataset */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Design</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Dataset</h4>
           <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">Signal Studio</li>
-            <li className="font-mono text-xs text-foreground/80">Interface Lab</li>
+            <li>
+              <a
+                href="https://github.com/whr000001/MisBot"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-mono text-xs text-foreground/80 hover:text-accent transition-colors duration-200"
+              >
+                MisBot
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://arxiv.org/abs/2408.09613"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-mono text-xs text-foreground/80 hover:text-accent transition-colors duration-200"
+              >
+                arXiv:2408.09613
+              </a>
+            </li>
           </ul>
         </div>
 
@@ -94,9 +112,20 @@ export function ColophonSection() {
         <div className="col-span-1">
           <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Stack</h4>
           <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">Next.js</li>
-            <li className="font-mono text-xs text-foreground/80">Tailwind CSS</li>
-            <li className="font-mono text-xs text-foreground/80">Vercel</li>
+            <li className="font-mono text-xs text-foreground/80">Next.js 15</li>
+            <li className="font-mono text-xs text-foreground/80">React 19</li>
+            <li className="font-mono text-xs text-foreground/80">Tailwind v4</li>
+            <li className="font-mono text-xs text-foreground/80">Zustand</li>
+          </ul>
+        </div>
+
+        {/* Visualization */}
+        <div className="col-span-1">
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Visualization</h4>
+          <ul className="space-y-2">
+            <li className="font-mono text-xs text-foreground/80">d3.js v7</li>
+            <li className="font-mono text-xs text-foreground/80">three.js</li>
+            <li className="font-mono text-xs text-foreground/80">GSAP + Lenis</li>
           </ul>
         </div>
 
@@ -105,49 +134,28 @@ export function ColophonSection() {
           <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Typography</h4>
           <ul className="space-y-2">
             <li className="font-mono text-xs text-foreground/80">Bebas Neue</li>
-            <li className="font-mono text-xs text-foreground/80">Inter</li>
-            <li className="font-mono text-xs text-foreground/80">Geist Mono</li>
+            <li className="font-mono text-xs text-foreground/80">IBM Plex Sans</li>
+            <li className="font-mono text-xs text-foreground/80">IBM Plex Mono</li>
           </ul>
         </div>
 
-        {/* Location */}
+        {/* Course */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Location</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Course</h4>
           <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">Remote</li>
-            <li className="font-mono text-xs text-foreground/80">Everywhere</li>
+            <li className="font-mono text-xs text-foreground/80">Data Visualization</li>
+            <li className="font-mono text-xs text-foreground/80">Final Project</li>
+            <li className="font-mono text-xs text-foreground/80">2026</li>
           </ul>
         </div>
 
-        {/* Contact */}
+        {/* Disclaimer */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Contact</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Posture</h4>
           <ul className="space-y-2">
-            <li>
-              <a
-                href="mailto:hello@signal.studio"
-                className="font-mono text-xs text-foreground/80 hover:text-accent transition-colors duration-200"
-              >
-                Email
-              </a>
-            </li>
-            <li>
-              <a
-                href="#"
-                className="font-mono text-xs text-foreground/80 hover:text-accent transition-colors duration-200"
-              >
-                Twitter/X
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        {/* Year */}
-        <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Year</h4>
-          <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">2025</li>
-            <li className="font-mono text-xs text-foreground/80">Ongoing</li>
+            <li className="font-mono text-xs text-foreground/80">Exploratory</li>
+            <li className="font-mono text-xs text-foreground/80">Proxy signals</li>
+            <li className="font-mono text-xs text-foreground/80">Not accusation</li>
           </ul>
         </div>
       </div>
@@ -158,9 +166,11 @@ export function ColophonSection() {
         className="mt-24 pt-8 border-t border-border/20 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
       >
         <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-          © 2025 Signal. All rights reserved.
+          MISBOT diffusion audit · 2026 course prototype · MIT-style academic use
         </p>
-        <p className="font-mono text-[10px] text-muted-foreground">Designed with intention. Built with precision.</p>
+        <p className="font-mono text-[10px] text-muted-foreground">
+          Bot labels are proxy signals. Accounts are not accused.
+        </p>
       </div>
     </section>
   )
