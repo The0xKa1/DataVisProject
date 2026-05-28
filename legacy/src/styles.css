@@ -1,7 +1,0 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap");
-
-@import "./styles/tokens.css";
-@import "./styles/base.css";
-@import "./styles/topbar.css";
-@import "./styles/panels.css";
-@import "./styles/controls.css";
