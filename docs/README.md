@@ -66,12 +66,24 @@ When `public/data/misbot_dashboard.json` is still the empty placeholder schema
 (the default for first-clone), the app automatically falls back to the
 populated `public/data/checked_dashboard.json` so the dashboard is never blank.
 
-Current dashboard renders eight coordinated panels inside the v0 INTERFACE
-Work bento grid:
+Current dashboard uses a hybrid narrative + analyst-console structure:
+
+- SCROLL STORY · a MIT-style sticky background network whose viewport jumps
+  between stable story regions as the user scrolls;
+- ANALYST CONSOLE · full-data burst ranking, bounded propagation shards, hub candidates, repeated templates, and evidence.
+
+The full MisBot build emits all 23,622 information instances into
+`public/data/misbot_dashboard.json`. Network rendering stays interactive by
+loading bounded graph projections from `public/data/misbot_graph_shards/`,
+with visible and omitted topology counts disclosed in the UI.
+
+The coordinated views include:
 
 - METRICS · dataset-level counters with selected case-window context;
+- STORY NETWORK · precomputed/bounded canvas projection for scroll-driven
+  zoom/pan, highlights, and evidence focus;
 - TIMELINE · monthly fake/real stacked bars + engagement line + d3 brush;
-- NETWORK · d3-force propagation graph with drag, zoom, and selection;
+- NETWORK · d3-force propagation shard graph with drag, zoom, and selection;
 - ORBIT · three.js engagement starfield with scroll-driven camera phases and raycast selection;
 - KEYWORDS · keyword bubble cloud with term-size and fake-share encoding;
 - ACTORS · high-activity actor bubble field with engagement size and fake-share rings;

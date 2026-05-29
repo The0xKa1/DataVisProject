@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useDashboardStore } from "./dashboard-store";
 import { parseEventDate } from "@/lib/format";
-import type { EventItem } from "@/lib/charts/types";
+import type { BurstWindow, EventGraphIndex, EventItem, HubActor } from "@/lib/charts/types";
 
 // Returns events that match all four active filters.
 // Computed once per [data, label, botHeavy, dateRange, search] tuple,
@@ -56,4 +56,44 @@ export function useSelectedEvent(events: EventItem[]): EventItem | null {
     if (!events.length) return null;
     return events.find((e) => e.id === selectedId) ?? events[0];
   }, [events, selectedId]);
+}
+
+export function useSelectedBurst(): BurstWindow | null {
+  const data = useDashboardStore((s) => s.data);
+  const selectedBurstId = useDashboardStore((s) => s.selectedBurstId);
+
+  return useMemo(() => {
+    const bursts = data?.coordination?.burstWindows ?? [];
+    if (!bursts.length) return null;
+    return bursts.find((b) => b.id === selectedBurstId) ?? bursts[0];
+  }, [data, selectedBurstId]);
+}
+
+export function useSelectedHub(): HubActor | null {
+  const data = useDashboardStore((s) => s.data);
+  const selectedHubId = useDashboardStore((s) => s.selectedHubId);
+
+  return useMemo(() => {
+    const hubs = data?.coordination?.hubActors ?? [];
+    if (!hubs.length) return null;
+    return hubs.find((h) => h.user === selectedHubId) ?? hubs[0];
+  }, [data, selectedHubId]);
+}
+
+export function useSelectedGraphIndex(): EventGraphIndex | null {
+  const data = useDashboardStore((s) => s.data);
+  const selectedId = useDashboardStore((s) => s.selectedId);
+  const selectedBurstId = useDashboardStore((s) => s.selectedBurstId);
+
+  return useMemo(() => {
+    const coordination = data?.coordination;
+    if (!coordination?.eventGraphIndex?.length) return null;
+    const burst = coordination.burstWindows.find((b) => b.id === selectedBurstId) ?? coordination.burstWindows[0];
+    const preferredId = selectedId ?? burst?.eventIds?.[0];
+    if (preferredId) {
+      const match = coordination.eventGraphIndex.find((entry) => entry.eventId === preferredId);
+      if (match) return match;
+    }
+    return coordination.eventGraphIndex[0];
+  }, [data, selectedId, selectedBurstId]);
 }

@@ -4,11 +4,10 @@ import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useFilteredEvents } from "@/lib/store/selectors";
 import { compactFmt, labelName } from "@/lib/format";
 
-const formatTickDate = (d: Date) => {
+const formatTickMonth = (d: Date) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${y}-${m}`;
 };
 
 interface Metric {
@@ -40,7 +39,7 @@ export function MetricsTile() {
     ? ((stats.fake / stats.microblogs) * 100).toFixed(1)
     : "0.0";
   const windowText = dateRange
-    ? `${formatTickDate(dateRange[0])} → ${formatTickDate(dateRange[1])}`
+    ? `${formatTickMonth(dateRange[0])} -> ${formatTickMonth(dateRange[1])}`
     : "ALL MONTHS";
 
   const metrics: Metric[] = [
@@ -95,7 +94,11 @@ export function MetricsTile() {
             </span>
           </div>
           <strong
-            className="block font-[var(--font-bebas)] text-3xl md:text-5xl leading-none tracking-tight tabular-nums break-words"
+            className={`block font-[var(--font-bebas)] leading-none tracking-tight tabular-nums ${
+              m.num === "05"
+                ? "text-2xl md:text-3xl whitespace-normal break-words"
+                : "text-3xl md:text-5xl break-words"
+            }`}
             style={{ fontWeight: 400 }}
           >
             {m.value}

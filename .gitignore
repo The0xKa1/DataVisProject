@@ -8,6 +8,8 @@
 .idea/
 *.swp
 *.swo
+*.zip
+.codegraph
 
 # Environment and secrets
 .env

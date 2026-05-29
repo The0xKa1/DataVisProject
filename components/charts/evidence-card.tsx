@@ -62,9 +62,9 @@ export function EvidenceCard() {
 
         {tags.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
-            {tags.map((t) => (
+            {tags.map((t, index) => (
               <button
-                key={t}
+                key={`${t}-${index}`}
                 type="button"
                 onClick={() => setSearch(t)}
                 className="border border-border/50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:border-accent hover:text-accent transition-colors duration-150"

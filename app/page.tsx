@@ -7,6 +7,7 @@ import { ScrollytellingSection } from "@/components/scrollytelling/scrollytellin
 import { PrinciplesSection } from "@/components/principles-section"
 import { ColophonSection } from "@/components/colophon-section"
 import { DashboardClient } from "@/components/dashboard/dashboard-client"
+import { AnalystConsoleSection } from "@/components/dashboard/analyst-console-section"
 import type { DashboardJSON } from "@/lib/charts/types"
 
 // Read the dashboard JSON at request time. Prefer the populated CHECKED
@@ -45,6 +46,7 @@ export default async function Page() {
         <SignalsSection />
         <DashboardClient initialData={data}>
           <ScrollytellingSection />
+          <AnalystConsoleSection />
         </DashboardClient>
         <PrinciplesSection />
         <ColophonSection />

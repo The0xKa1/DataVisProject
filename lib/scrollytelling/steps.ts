@@ -1,25 +1,12 @@
-import type { DashboardJSON, EventItem, PhraseRow } from "@/lib/charts/types";
-import { eventInteractions, parseEventDate } from "@/lib/format";
-
 export type StageKind = "network" | "timeline" | "orbit";
 
-// Driver hands these to each step's `apply`. Wraps the store so the steps
-// stay declarative and testable. `setOrbitPhase` accepts 0..1 to drive the
-// pinned OrbitScene's camera; `null` releases control back to its self
-// ScrollTrigger (used after the section ends).
 export interface StepHelpers {
-  data: DashboardJSON | null;
-  setLabel: (v: "all" | "fake" | "real") => void;
-  setBotHeavy: (v: boolean) => void;
-  setSearch: (v: string) => void;
-  setDateRange: (r: [Date, Date] | null) => void;
-  setSelected: (id: string | null) => void;
-  setOrbitPhase: (p: number | null) => void;
-  resetFilters: () => void;
+  setStoryPreset: (presetId: string) => void;
 }
 
 export interface Step {
   id: string;
+  presetId: string;
   eyebrow: string;
   title: string;
   body: string;
@@ -28,194 +15,89 @@ export interface Step {
   apply: (h: StepHelpers) => void;
 }
 
-// Helper: locate the highest-fake month in the timeline and return a
-// [start, end] window covering that month ± 1 month. Falls back to full
-// range when timeline is empty / malformed.
-function burstWindow(data: DashboardJSON | null): [Date, Date] | null {
-  if (!data?.timeline?.length) return null;
-  const peak = [...data.timeline].sort((a, b) => (b.fake ?? 0) - (a.fake ?? 0))[0];
-  if (!peak) return null;
-  const [y, m] = peak.month.split("-").map((s) => parseInt(s, 10));
-  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
-  // ±1 month around the peak
-  const start = new Date(y, m - 2, 1);
-  const end = new Date(y, m + 1, 0, 23, 59, 59);
-  return [start, end];
+function preset(id: string) {
+  return (h: StepHelpers) => h.setStoryPreset(id);
 }
 
-// Helper: top engagement event matching a label, optionally inside a window.
-function topEvent(
-  data: DashboardJSON | null,
-  label?: "fake" | "real",
-  window?: [Date, Date] | null,
-): EventItem | null {
-  if (!data?.events?.length) return null;
-  const filtered = data.events.filter((e) => {
-    if (label && e.label !== label) return false;
-    if (window) {
-      const dt = parseEventDate(e.date);
-      if (!dt) return false;
-      if (dt < window[0] || dt > window[1]) return false;
-    }
-    return true;
-  });
-  filtered.sort((a, b) => eventInteractions(b) - eventInteractions(a));
-  return filtered[0] ?? data.events[0] ?? null;
-}
-
-function topPhrase(data: DashboardJSON | null): PhraseRow | null {
-  return data?.phrases?.[0] ?? null;
-}
-
-// 9-step Case Study narrative. Each `apply` is idempotent: re-running it
-// from any prior state lands the store in this step's intended state.
-// Filters that clear `selectedId` (setLabel/setBotHeavy/setSearch/setDateRange)
-// are called BEFORE setSelected so focus survives.
+// MIT-style story steps: each card only selects a deterministic network
+// preset. The preset then drives viewport, highlights, timeline window, and
+// evidence through the dashboard store.
 export const STEPS: Step[] = [
   {
     id: "overview",
+    presetId: "overview",
     eyebrow: "01 / OVERVIEW",
-    title: "A field of microblogs.",
+    title: "The audit opens as one field.",
     body:
-      "Twenty-three thousand information instances, nearly a million participants. Each star is a microblog; radius is engagement, lane is fake versus real. Before we accuse anyone of coordination, we look at the field as a whole.",
-    side: "left",
-    stage: "orbit",
-    apply: (h) => {
-      h.resetFilters();
-      h.setOrbitPhase(0);
-    },
-  },
-  {
-    id: "fake-only",
-    eyebrow: "02 / NARRATIVES",
-    title: "Isolate the fake stream.",
-    body:
-      "Most months carry a low base rate of misinformation. We strip out the verified posts and look at the misinformation timeline alone — orange bars only, real-axis muted.",
-    side: "right",
-    stage: "timeline",
-    apply: (h) => {
-      h.setOrbitPhase(0.15);
-      h.setLabel("fake");
-      h.setDateRange(null);
-      h.setSelected(null);
-    },
-  },
-  {
-    id: "burst",
-    eyebrow: "03 / BURST",
-    title: "Find the spike.",
-    body:
-      "One month dominates the misinformation curve. We brush a window around it and watch every other view follow — keywords, actors, evidence — re-scoped to the burst period.",
-    side: "left",
-    stage: "timeline",
-    apply: (h) => {
-      h.setOrbitPhase(0.25);
-      h.setLabel("fake");
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-    },
-  },
-  {
-    id: "network-in",
-    eyebrow: "04 / DIFFUSION",
-    title: "Switch to the propagation graph.",
-    body:
-      "Inside the burst window, posts and amplifiers form a force-directed network. Squares are microblogs, circles are actors. The window is preserved — we are looking at the same time slice, in a different geometry.",
-    side: "right",
-    stage: "network",
-    apply: (h) => {
-      h.setOrbitPhase(0.35);
-      h.setLabel("fake");
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-    },
-  },
-  {
-    id: "core-amplifier",
-    eyebrow: "05 / FOCUS",
-    title: "The loudest microblog.",
-    body:
-      "We highlight the highest-engagement fake post in the window. Its one-hop neighbors light up — every actor that reposted, commented, or reacted. The rest of the graph dims to context.",
+      "A bounded projection of MisBot cases fills the background. Each cluster is a prepared story shard, not a live force simulation. We start wide so topology reads as context rather than accusation.",
     side: "left",
     stage: "network",
-    apply: (h) => {
-      h.setOrbitPhase(0.45);
-      h.setLabel("fake");
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-      const ev = topEvent(h.data, "fake", w);
-      if (ev) h.setSelected(ev.id);
-    },
+    apply: preset("overview"),
   },
   {
-    id: "template",
-    eyebrow: "06 / TEMPLATE",
-    title: "Same words, many mouths.",
+    id: "fake-burst",
+    presetId: "fake-burst",
+    eyebrow: "02 / BURST",
+    title: "Scroll into the fake-heavy window.",
     body:
-      "Re-used phrases are the cheapest coordination signal we have. We search the most-repeated template — every microblog whose text contains it stays lit, the rest fall away.",
+      "The camera moves toward the strongest misinformation burst and the shared filters follow: fake stream, burst months, and the first evidence candidate become the active analytical slice.",
     side: "right",
     stage: "network",
-    apply: (h) => {
-      h.setOrbitPhase(0.55);
-      h.setLabel("fake");
-      const phrase = topPhrase(h.data);
-      // Search clears selectedId — re-apply the focal event after.
-      h.setSearch(phrase?.text ?? "");
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-      const ev = topEvent(h.data, "fake", w);
-      if (ev) h.setSelected(ev.id);
-    },
+    apply: preset("fake-burst"),
+  },
+  {
+    id: "propagation-core",
+    presetId: "propagation-core",
+    eyebrow: "03 / DIFFUSION",
+    title: "Hold the layout. Change the scale.",
+    body:
+      "Instead of recomputing a force graph, the narrative zooms into a stable cascade. Actors and posts stay in place, so the viewer can learn the shape as the explanation gets narrower.",
+    side: "left",
+    stage: "network",
+    apply: preset("propagation-core"),
+  },
+  {
+    id: "template-cluster",
+    presetId: "template-cluster",
+    eyebrow: "04 / TEMPLATE",
+    title: "Repeated phrasing becomes a region.",
+    body:
+      "A repeated text template turns into a spatial focus. The search state updates behind the scenes, tying a language signal to the same network field.",
+    side: "right",
+    stage: "network",
+    apply: preset("template-cluster"),
   },
   {
     id: "bot-heavy",
-    eyebrow: "07 / BOT SLICE",
-    title: "Filter to bot-heavy participation.",
+    presetId: "bot-heavy",
+    eyebrow: "05 / PROXY SIGNAL",
+    title: "Bot-heavy nodes light up, carefully.",
     body:
-      "Weakly supervised bot scores are proxy signals, not accusations. We restrict to microblogs whose participants are at least a quarter bot-labeled. The graph collapses to the candidates worth a closer look.",
+      "Weak bot labels are proxy evidence only. The story highlights candidate-heavy participation while preserving the visual reminder that this is an audit surface, not a verdict.",
     side: "left",
     stage: "network",
-    apply: (h) => {
-      h.setOrbitPhase(0.65);
-      h.setLabel("fake");
-      h.setSearch("");
-      h.setBotHeavy(true);
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-      const ev = topEvent(h.data, "fake", w);
-      if (ev) h.setSelected(ev.id);
-    },
+    apply: preset("bot-heavy"),
   },
   {
-    id: "close-read",
-    eyebrow: "08 / CLOSE READ",
-    title: "Zoom in. Read the evidence.",
+    id: "evidence-focus",
+    presetId: "evidence-focus",
+    eyebrow: "06 / CLOSE READ",
+    title: "Land on one local neighborhood.",
     body:
-      "Back in orbit space, the camera drops into close-read phase: stars separate by lane, halos brighten on the focal event. The audit hands the analyst a single, anonymized post to read carefully.",
+      "The camera drops to a single post and its immediate neighbors. The evidence panel receives the same selected event, making the scroll step end in something the analyst can actually read.",
     side: "right",
-    stage: "orbit",
-    apply: (h) => {
-      h.setOrbitPhase(0.95);
-      h.setLabel("fake");
-      h.setBotHeavy(true);
-      h.setSearch("");
-      const w = burstWindow(h.data);
-      if (w) h.setDateRange(w);
-      const ev = topEvent(h.data, "fake", w);
-      if (ev) h.setSelected(ev.id);
-    },
+    stage: "network",
+    apply: preset("evidence-focus"),
   },
   {
-    id: "audit-posture",
-    eyebrow: "09 / POSTURE",
-    title: "An audit, not an accusation.",
+    id: "limits",
+    presetId: "limits",
+    eyebrow: "07 / LIMITS",
+    title: "Pull back before conclusion.",
     body:
-      "We surfaced a fake-heavy burst, a coordinated phrase, a bot-labeled slice, and one focal post. Nothing in this story is a verdict. The system's job is to put suspect signals in front of a human reviewer, then step back.",
+      "The network zooms back out. Omitted topology and proxy labels remain part of the story, because the system should surface signals for human review, not present automatic accusations.",
     side: "left",
-    stage: "orbit",
-    apply: (h) => {
-      h.resetFilters();
-      h.setOrbitPhase(1);
-    },
+    stage: "network",
+    apply: preset("limits"),
   },
 ];

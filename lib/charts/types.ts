@@ -55,6 +55,7 @@ export interface EventItem {
   label: LabelKind;
   sourceType?: string;
   date: string;
+  month?: string;
   user: string;
   text: string;
   analysis?: string;
@@ -81,9 +82,14 @@ export interface ActorRow {
   attitudes?: number;
   fake: number;
   real: number;
+  eventCount?: number;
+  fakeEventCount?: number;
+  realEventCount?: number;
+  fakeShare?: number;
   botLabel?: "bot" | "human" | "unknown";
   botScore?: number;
   labelSource?: string;
+  topEventIds?: string[];
   score?: number;
 }
 
@@ -112,16 +118,165 @@ export interface GraphNode {
   name?: string;
   weight: number;
   botShare?: number;
+  fakeShare?: number;
   x?: number;
   y?: number;
 }
 
-export type EdgeType = "repost" | "comment" | "attitude";
+export type EdgeType = "repost" | "comment" | "attitude" | "repostCascade" | "commentReply";
 
 export interface GraphEdge {
   source: string;
   target: string;
   type: EdgeType;
+}
+
+export interface BurstWindow {
+  id: string;
+  startMonth: string;
+  endMonth: string;
+  peakMonth: string;
+  fake: number;
+  real: number;
+  engagement: number;
+  botShare: number;
+  eventIds: string[];
+  topKeywords: string[];
+  score: number;
+}
+
+export interface HubActor extends ActorRow {
+  eventCount: number;
+  fakeEventCount: number;
+  realEventCount: number;
+  fakeShare: number;
+  topEventIds: string[];
+  score: number;
+}
+
+export interface TemplateSignal {
+  id: string;
+  text: string;
+  count: number;
+  users: number;
+  botUsers?: number;
+  botShare?: number;
+  eventIds: string[];
+}
+
+export interface EventGraphIndex {
+  eventId: string;
+  shortId: string;
+  label: LabelKind;
+  sourceType?: string;
+  date: string;
+  month: string;
+  participantCount: number;
+  knownUserCount: number;
+  botShare: number;
+  repostEdges: number;
+  commentEdges: number;
+  cascadeEdges: number;
+  cascadeDepth: number;
+  score: number;
+  shard?: string;
+}
+
+export interface GraphShard {
+  eventId: string;
+  shortId: string;
+  graph: { nodes: GraphNode[]; edges: GraphEdge[] };
+  visibleNodes: number;
+  visibleEdges: number;
+  omittedNodes: number;
+  omittedEdges: number;
+  selectionRule: string;
+  path?: string;
+}
+
+export interface StoryNetworkNode {
+  id: string;
+  refId: string;
+  kind: GraphNodeKind;
+  x: number;
+  y: number;
+  r: number;
+  cluster: string;
+  label?: LabelKind;
+  name?: string;
+  weight: number;
+  eventId?: string;
+  botShare?: number;
+  fakeShare?: number;
+}
+
+export interface StoryNetworkEdge {
+  source: string;
+  target: string;
+  type: EdgeType;
+  cluster: string;
+  c1x?: number;
+  c1y?: number;
+  c2x?: number;
+  c2y?: number;
+}
+
+export interface StoryFocusRegion {
+  id: string;
+  label: string;
+  centerX: number;
+  centerY: number;
+  scale: number;
+  nodeIds: string[];
+  eventIds: string[];
+  selectedEventId?: string;
+  labelFilter?: "all" | LabelKind;
+  botHeavy?: boolean;
+  search?: string;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  orbitPhase?: number;
+  summary?: string;
+}
+
+export interface StoryNetwork {
+  nodes: StoryNetworkNode[];
+  edges: StoryNetworkEdge[];
+  focusRegions: StoryFocusRegion[];
+  bounds: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  };
+  selectionRule: string;
+}
+
+export interface CoordinationSummary {
+  summary: {
+    fullCoverage?: boolean;
+    eventCount?: number;
+    actorUniverse?: number;
+    visibleGraphPolicy?: string;
+    shardBasePath?: string;
+    shardCount?: number;
+  };
+  burstWindows: BurstWindow[];
+  hubActors: HubActor[];
+  templateSignals: TemplateSignal[];
+  eventGraphIndex: EventGraphIndex[];
+  caseGraphs?: GraphShard[];
+  storyNetwork?: StoryNetwork;
+  tailSummary?: {
+    keywordRowsTotal?: number;
+    phraseRowsTotal?: number;
+    actorRowsRanked?: number;
+    keywordsEmitted?: number;
+    phrasesEmitted?: number;
+    actorsEmitted?: number;
+  };
 }
 
 export interface DashboardJSON {
@@ -132,5 +287,6 @@ export interface DashboardJSON {
   events: EventItem[];
   actors: ActorRow[];
   phrases: PhraseRow[];
+  coordination?: CoordinationSummary;
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
 }

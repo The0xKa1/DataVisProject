@@ -13,6 +13,7 @@ import {
 } from "@/lib/charts/colors";
 import { buildNetworkData, type NetworkLink, type NetworkNode } from "@/lib/charts/network-data";
 import { compactFmt, escapeHTML, fmt, labelName, parseEventDate } from "@/lib/format";
+import type { GraphShard } from "@/lib/charts/types";
 
 const W = 960;
 const H = 560;
@@ -25,7 +26,11 @@ interface NetworkRefs {
   simulation: d3.Simulation<NetworkNode, NetworkLink>;
 }
 
-export function NetworkGraph() {
+interface NetworkGraphProps {
+  shard?: GraphShard | null;
+}
+
+export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const refsRef = useRef<NetworkRefs | null>(null);
   const data = useDashboardStore((s) => s.data);
@@ -37,9 +42,15 @@ export function NetworkGraph() {
 
   // Compute the network projection per filter change.
   const { nodes, links } = useMemo(() => {
+    if (shard) {
+      return {
+        nodes: shard.graph.nodes.map((node) => ({ ...node })) as NetworkNode[],
+        links: shard.graph.edges.map((edge) => ({ ...edge })) as NetworkLink[],
+      };
+    }
     if (!data) return { nodes: [] as NetworkNode[], links: [] as NetworkLink[] };
     return buildNetworkData(data, events);
-  }, [data, events]);
+  }, [data, events, shard]);
 
   // Mount once: create svg root, simulation, zoom.
   useEffect(() => {
@@ -116,9 +127,7 @@ export function NetworkGraph() {
             .append("line")
             .attr("stroke-width", 1)
             .attr("stroke-opacity", 0.45)
-            .attr("stroke", (d) =>
-              d.type === "comment" ? COLORS.cool : COLORS.ink
-            ),
+            .attr("stroke", (d) => edgeColor(d.type)),
         (update) => update,
         (exit) => exit.remove()
       )
@@ -358,8 +367,16 @@ export function NetworkGraph() {
     if (selectedNodeId) {
       neighbors.add(selectedNodeId);
       for (const e of data.graph.edges) {
-        if (e.source === selectedNodeId) neighbors.add(linkId(e.target));
-        if (e.target === selectedNodeId) neighbors.add(linkId(e.source));
+        const sId = linkId(e.source);
+        const tId = linkId(e.target);
+        if (sId === selectedNodeId) neighbors.add(tId);
+        if (tId === selectedNodeId) neighbors.add(sId);
+      }
+      for (const e of links) {
+        const sId = linkId(e.source);
+        const tId = linkId(e.target);
+        if (sId === selectedNodeId) neighbors.add(tId);
+        if (tId === selectedNodeId) neighbors.add(sId);
       }
     }
 
@@ -388,11 +405,11 @@ export function NetworkGraph() {
           !!selectedNodeId && sId !== selectedNodeId && tId !== selectedNodeId;
         const node = d3.select(this);
         node
-          .attr("stroke", isHot ? COLORS.hot : d.type === "comment" ? COLORS.cool : COLORS.ink)
+          .attr("stroke", isHot ? COLORS.hot : edgeColor(d.type))
           .attr("stroke-width", isHot ? 1.5 : 1)
           .attr("stroke-opacity", isDim ? 0.06 : isHot ? 1 : 0.45);
       });
-  }, [selectedId, data]);
+  }, [selectedId, data, links]);
 
   return (
     <div
@@ -413,13 +430,19 @@ export function NetworkGraph() {
         </div>
       )}
       {data && nodes.length > 0 && (
-        <div className="pointer-events-none absolute left-3 bottom-3 flex border border-border bg-card/70 backdrop-blur-sm font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
+        <div className="pointer-events-none absolute left-3 bottom-3 flex flex-wrap border border-border bg-card/70 backdrop-blur-sm font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
           <span className="border-r border-border px-3 py-1.5">
             <b className="text-accent font-medium">{fmt.format(nodes.length)}</b> nodes
           </span>
           <span className="px-3 py-1.5">
             <b className="text-accent font-medium">{fmt.format(links.length)}</b> edges
           </span>
+          {shard && (shard.omittedNodes > 0 || shard.omittedEdges > 0) && (
+            <span className="border-l border-border px-3 py-1.5 text-muted-foreground">
+              omitted <b className="text-accent font-medium">{fmt.format(shard.omittedNodes)}</b> nodes ·{" "}
+              <b className="text-accent font-medium">{fmt.format(shard.omittedEdges)}</b> edges
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -438,4 +461,10 @@ function linkNode(ref: string | NetworkNode): NetworkNode {
 
 function linkKey(d: NetworkLink): string {
   return `${linkId(d.source)}->${linkId(d.target)}`;
+}
+
+function edgeColor(type: string): string {
+  if (type === "comment" || type === "commentReply") return COLORS.cool;
+  if (type === "repostCascade") return COLORS.hot;
+  return COLORS.ink;
 }

@@ -202,12 +202,12 @@ export function TimelineChart() {
     g.append("text")
       .attr("x", 0)
       .attr("y", -12)
-      .attr("fill", COLORS.muted)
+      .attr("fill", COLORS.hot)
       .style("font-family", "var(--font-mono)")
       .style("font-size", "9.5px")
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
-      .text("MONTHLY POSTS");
+      .text("PEAKS REVEAL MISINFORMATION BURSTS");
 
     g.append("text")
       .attr("x", innerW)
@@ -219,6 +219,28 @@ export function TimelineChart() {
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
       .text("ENGAGEMENT");
+
+    const peak = rows.reduce((best, row) => (row.fake > best.fake ? row : best), rows[0]);
+    if (peak && peak.fake > 0) {
+      const px = barCenter(peak);
+      g.append("line")
+        .attr("x1", px)
+        .attr("x2", px)
+        .attr("y1", 0)
+        .attr("y2", innerH)
+        .attr("stroke", COLORS.hot)
+        .attr("stroke-opacity", 0.55)
+        .attr("stroke-dasharray", "4 4");
+      g.append("text")
+        .attr("x", Math.min(innerW - 8, px + 8))
+        .attr("y", 12)
+        .attr("fill", COLORS.hot)
+        .style("font-family", "var(--font-mono)")
+        .style("font-size", "9px")
+        .style("letter-spacing", "0.16em")
+        .style("text-transform", "uppercase")
+        .text(`${peak.month} fake peak`);
+    }
 
     // Brush
     const brush = d3

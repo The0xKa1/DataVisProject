@@ -53,15 +53,15 @@ export function StepCard({ step, index, total, onActivate }: Props) {
       ref={ref}
       data-step-id={step.id}
       className={cn(
-        "scrolly-step pointer-events-none relative flex min-h-screen items-center px-6 md:px-12",
+        "scrolly-step pointer-events-none relative flex min-h-[92dvh] items-center px-0 md:min-h-screen",
         step.side === "left" ? "md:justify-start" : "md:justify-end",
       )}
     >
       <div
         ref={innerRef}
         className={cn(
-          "pointer-events-auto w-full md:max-w-sm border border-border/50 bg-card/85 backdrop-blur-md p-6 md:p-7",
-          "shadow-[0_30px_60px_-30px_rgba(0,0,0,0.55)]",
+          "pointer-events-auto w-full border-l border-accent/70 bg-background/58 p-5 backdrop-blur-md md:max-w-md md:p-7",
+          "shadow-[inset_1px_0_0_rgba(255,255,255,0.08),0_28px_70px_-48px_rgba(0,0,0,0.9)]",
         )}
       >
         <div className="flex items-baseline justify-between gap-3">
@@ -75,26 +75,20 @@ export function StepCard({ step, index, total, onActivate }: Props) {
         <h3 className="mt-3 font-[var(--font-bebas)] text-3xl md:text-4xl leading-tight tracking-tight">
           {step.title}
         </h3>
-        <p className="mt-3 font-mono text-[12px] leading-relaxed text-muted-foreground">
+        <p className="mt-3 max-w-[46ch] font-mono text-[12px] leading-relaxed text-muted-foreground">
           {step.body}
         </p>
-        <StageBadge stage={step.stage} />
+        <StageBadge step={step} />
       </div>
     </div>
   );
 }
 
-function StageBadge({ stage }: { stage: Step["stage"] }) {
-  const label =
-    stage === "network"
-      ? "Stage · Network"
-      : stage === "timeline"
-        ? "Stage · Timeline"
-        : "Stage · Orbit";
+function StageBadge({ step }: { step: Step }) {
   return (
     <div className="mt-4 inline-flex items-center gap-2 border border-border/40 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/80">
       <span className="h-1 w-1 bg-accent" aria-hidden />
-      {label}
+      Network region / {step.presetId.replace(/-/g, " ")}
     </div>
   );
 }
