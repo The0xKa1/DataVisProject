@@ -19,9 +19,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 const bebasNeue = Bebas_Neue({ weight: "400", subsets: ["latin"], variable: "--font-bebas" })
 
 export const metadata: Metadata = {
-  title: "MISBOT — Weibo Bot/Misinfo Diffusion Audit",
+  title: "MISBOT — 微博水军与虚假信息扩散审计",
   description:
-    "Exploratory visual analytics over Weibo misinformation diffusion and bot participation. Built on the MisBot dataset; signals only, not accusations.",
+    "基于 MisBot 数据集的微博虚假信息扩散与水军参与探索式可视分析；只呈现代理信号，不作账号指控。",
   icons: {
     icon: [
       { url: "/icon-light-32x32.png", media: "(prefers-color-scheme: light)" },
@@ -38,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark bg-background">
+    <html lang="zh-CN" className="dark bg-background">
       <body
         className={`${ibmPlexSans.variable} ${bebasNeue.variable} ${ibmPlexMono.variable} font-sans antialiased`}
       >

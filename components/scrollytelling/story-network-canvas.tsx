@@ -5,7 +5,7 @@ import * as d3 from "d3";
 import { COLORS } from "@/lib/charts/colors";
 import { resolveStoryNetwork } from "@/lib/charts/story-network";
 import type { StoryNetwork, StoryNetworkNode, StoryNetworkEdge } from "@/lib/charts/types";
-import { escapeHTML, labelName } from "@/lib/format";
+import { escapeHTML, labelName, selectionRuleName, storyLabelName } from "@/lib/format";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useTooltip } from "@/lib/store/tooltip-store";
 
@@ -40,7 +40,9 @@ export function StoryNetworkCanvas() {
   const storyViewport = useDashboardStore((s) => s.storyViewport);
   const highlightNodeIds = useDashboardStore((s) => s.highlightNodeIds);
   const selectedId = useDashboardStore((s) => s.selectedId);
+  const selectedActorId = useDashboardStore((s) => s.selectedActorId);
   const setSelected = useDashboardStore((s) => s.setSelected);
+  const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
   const { show, hide } = useTooltip();
 
   const story = useMemo(() => resolveStoryNetwork(data), [data]);
@@ -77,7 +79,9 @@ export function StoryNetworkCanvas() {
     const nodeById = new Map(network.nodes.map((node) => [node.id, node]));
     const highlighted = new Set(highlightNodeIds.length ? highlightNodeIds : focus?.nodeIds ?? []);
     const selectedStoryIds = new Set(
-      selectedId ? network.nodes.filter((node) => node.eventId === selectedId).map((node) => node.id) : [],
+      network.nodes
+        .filter((node) => node.eventId === selectedId || node.refId === selectedActorId)
+        .map((node) => node.id),
     );
     const isOverview = highlighted.size >= network.nodes.length * 0.6;
 
@@ -267,6 +271,7 @@ export function StoryNetworkCanvas() {
     function onClick() {
       const node = hoveredRef.current;
       if (node?.eventId) setSelected(node.eventId);
+      if (node?.kind === "actor") setSelectedActor(node.refId);
     }
 
     resize();
@@ -284,19 +289,19 @@ export function StoryNetworkCanvas() {
       canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("click", onClick);
     };
-  }, [story, focus, storyViewport, highlightNodeIds, selectedId, setSelected, show, hide]);
+  }, [story, focus, storyViewport, highlightNodeIds, selectedId, selectedActorId, setSelected, setSelectedActor, show, hide]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background">
       <canvas
         ref={canvasRef}
-        aria-label="Scroll-driven MisBot story network"
+        aria-label="滚动驱动的 MisBot 叙事网络"
         className="block h-full w-full cursor-crosshair"
       />
       {!story && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80">
           <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-            Loading story network ...
+            正在加载叙事网络...
           </span>
         </div>
       )}
@@ -632,21 +637,25 @@ function drawRegionLabel(ctx: CanvasRenderingContext2D, label: string, rule: str
   ctx.font = "10px var(--font-mono)";
   ctx.fillStyle = "rgba(237,237,237,0.62)";
   ctx.textBaseline = "bottom";
-  ctx.fillText(label.toUpperCase(), 28, height - 34);
+  ctx.fillText(storyLabelName(label), 28, height - 34);
   ctx.fillStyle = "rgba(122,122,122,0.68)";
-  ctx.fillText(rule.toUpperCase(), 28, height - 18);
+  ctx.fillText(selectionRuleName(rule), 28, height - 18);
   ctx.fillStyle = "rgba(233,106,44,0.88)";
   ctx.fillRect(18, height - 45, 3, 31);
   ctx.restore();
 }
 
 function tooltipFor(node: StoryNetworkNode): string {
-  const kind = node.kind === "microblog" ? "microblog" : "actor";
+  const kind = node.kind === "microblog" ? "微博" : "参与者";
   const label = node.label ? labelName(node.label) : kind;
+  const botPct = Math.round((node.botShare ?? 0) * 100);
+  const fakePct = Math.round((node.fakeShare ?? 0) * 100);
   return `<b>${escapeHTML(node.name ?? node.refId)}</b>
-    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">kind</span><b>${escapeHTML(kind)}</b></div>
-    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">label</span><b>${escapeHTML(label)}</b></div>
-    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">cluster</span><b>${escapeHTML(node.cluster)}</b></div>`;
+    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">类型</span><b>${escapeHTML(kind)}</b></div>
+    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">标签</span><b>${escapeHTML(label)}</b></div>
+    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">水军代理</span><b>${botPct}%</b></div>
+    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假参与</span><b>${fakePct}%</b></div>
+    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">簇</span><b>${escapeHTML(node.cluster)}</b></div>`;
 }
 
 function edgeColor(type: string, alpha: number) {

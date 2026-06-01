@@ -50,7 +50,7 @@ interface OrbitRefs {
 
 const TRAIL_N = 18;
 const STAR_LIMIT = 24;
-const STORY_STEPS = ["OVERVIEW", "AMPLIFICATION", "CLOSE READ"];
+const STORY_STEPS = ["总览", "放大", "细读"];
 
 export function OrbitScene() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -455,20 +455,20 @@ export function OrbitScene() {
       {(!data || !topEvents.length) && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/30 border border-border/30">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
-            {data ? "No microblogs under current filter." : "Loading orbit ..."}
+            {data ? "当前筛选下没有微博。" : "正在加载轨道视图..."}
           </span>
         </div>
       )}
       <div className="absolute left-3 top-3 grid gap-1 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70 max-w-[60%] pointer-events-none">
-        <span>Stars · top microblogs</span>
-        <span>Radius · engagement</span>
-        <span className="hidden md:inline">Disc · log(likes) · Trail · |Δ c−r|</span>
+        <span>星点 · 头部微博</span>
+        <span>半径 · 互动量</span>
+        <span className="hidden md:inline">圆盘 · 点赞对数 · 尾迹 · |评论-转发|</span>
       </div>
       <div className="absolute left-3 bottom-3 w-[52%] border border-border bg-card/70 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur-sm pointer-events-none">
         <div className="flex items-center justify-between gap-3">
-          <span>Scroll phase</span>
+          <span>滚动阶段</span>
           <span ref={storyStepRef} className="text-accent">
-            OVERVIEW
+            总览
           </span>
         </div>
         <div className="mt-2 h-px w-full bg-border/60">
@@ -486,7 +486,7 @@ export function OrbitScene() {
           checked={autoRotate}
           onChange={(e) => setAutoRotate(e.target.checked)}
         />
-        Auto rotate
+        自动旋转
       </label>
     </div>
   );

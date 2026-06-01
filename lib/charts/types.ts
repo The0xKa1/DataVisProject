@@ -179,7 +179,7 @@ export interface EventGraphIndex {
   cascadeEdges: number;
   cascadeDepth: number;
   score: number;
-  shard?: string;
+  fullGraph?: string;
 }
 
 export interface GraphShard {
@@ -239,6 +239,7 @@ export interface StoryFocusRegion {
   };
   orbitPhase?: number;
   summary?: string;
+  selectedActorId?: string;
 }
 
 export interface StoryNetwork {
@@ -262,6 +263,10 @@ export interface CoordinationSummary {
     visibleGraphPolicy?: string;
     shardBasePath?: string;
     shardCount?: number;
+    fullGraphBasePath?: string;
+    fullGraphCount?: number;
+    fullGraphLimit?: number;
+    fullGraphSelection?: string;
   };
   burstWindows: BurstWindow[];
   hubActors: HubActor[];

@@ -89,11 +89,28 @@ export function useSelectedGraphIndex(): EventGraphIndex | null {
     const coordination = data?.coordination;
     if (!coordination?.eventGraphIndex?.length) return null;
     const burst = coordination.burstWindows.find((b) => b.id === selectedBurstId) ?? coordination.burstWindows[0];
-    const preferredId = selectedId ?? burst?.eventIds?.[0];
+    const preferredId = selectedId ?? pickBurstGraphEventId(burst, coordination.eventGraphIndex);
     if (preferredId) {
       const match = coordination.eventGraphIndex.find((entry) => entry.eventId === preferredId);
       if (match) return match;
     }
     return coordination.eventGraphIndex[0];
   }, [data, selectedId, selectedBurstId]);
+}
+
+function pickBurstGraphEventId(
+  burst: BurstWindow | undefined,
+  graphIndex: EventGraphIndex[],
+): string | undefined {
+  if (!burst?.eventIds?.length) return undefined;
+  const indexById = new Map(graphIndex.map((entry) => [entry.eventId, entry]));
+  return [...burst.eventIds].sort((a, b) => {
+    const score = (entry?: EventGraphIndex) =>
+      (entry?.label === "fake" ? 100000 : 0) +
+      (entry?.fullGraph ? 50000 : 0) +
+      (entry?.participantCount ?? 0) * 4 +
+      (entry?.botShare ?? 0) * 1000 +
+      (entry?.score ?? 0) / 100;
+    return score(indexById.get(b)) - score(indexById.get(a));
+  })[0];
 }

@@ -29,7 +29,7 @@ export function PhrasesList() {
   if (!rows.length) {
     return (
       <div className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground p-4">
-        Scanning phrase templates …
+        正在扫描话术模板...
       </div>
     );
   }
@@ -70,7 +70,7 @@ export function PhrasesList() {
                 {p.text}
               </p>
               <span className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                <b className="text-foreground/90 font-medium">{fmt.format(p.count)}</b> HITS · {fmt.format(p.users)} USERS
+                <b className="text-foreground/90 font-medium">{fmt.format(p.count)}</b> 次命中 · {fmt.format(p.users)} 用户
               </span>
               <span className="absolute left-0 bottom-0 h-px bg-accent/70 transition-all duration-200 ease-out group-hover:bg-accent" style={{ width: `${width}%` }} />
             </button>

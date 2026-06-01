@@ -75,15 +75,15 @@ export function ColophonSection() {
     >
       {/* Section header */}
       <div ref={headerRef} className="mb-16">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">04 / Colophon</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">COLOPHON</h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">05 / 附录</span>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">项目说明</h2>
       </div>
 
       {/* Multi-column layout */}
       <div ref={gridRef} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 md:gap-12">
         {/* Dataset */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Dataset</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">数据集</h4>
           <ul className="space-y-2">
             <li>
               <a
@@ -110,7 +110,7 @@ export function ColophonSection() {
 
         {/* Stack */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Stack</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">技术栈</h4>
           <ul className="space-y-2">
             <li className="font-mono text-xs text-foreground/80">Next.js 15</li>
             <li className="font-mono text-xs text-foreground/80">React 19</li>
@@ -121,7 +121,7 @@ export function ColophonSection() {
 
         {/* Visualization */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Visualization</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">可视化</h4>
           <ul className="space-y-2">
             <li className="font-mono text-xs text-foreground/80">d3.js v7</li>
             <li className="font-mono text-xs text-foreground/80">three.js</li>
@@ -131,7 +131,7 @@ export function ColophonSection() {
 
         {/* Typography */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Typography</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">字体</h4>
           <ul className="space-y-2">
             <li className="font-mono text-xs text-foreground/80">Bebas Neue</li>
             <li className="font-mono text-xs text-foreground/80">IBM Plex Sans</li>
@@ -141,21 +141,21 @@ export function ColophonSection() {
 
         {/* Course */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Course</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">课程</h4>
           <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">Data Visualization</li>
-            <li className="font-mono text-xs text-foreground/80">Final Project</li>
+            <li className="font-mono text-xs text-foreground/80">数据可视化</li>
+            <li className="font-mono text-xs text-foreground/80">期末项目</li>
             <li className="font-mono text-xs text-foreground/80">2026</li>
           </ul>
         </div>
 
         {/* Disclaimer */}
         <div className="col-span-1">
-          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">Posture</h4>
+          <h4 className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground mb-4">审计姿态</h4>
           <ul className="space-y-2">
-            <li className="font-mono text-xs text-foreground/80">Exploratory</li>
-            <li className="font-mono text-xs text-foreground/80">Proxy signals</li>
-            <li className="font-mono text-xs text-foreground/80">Not accusation</li>
+            <li className="font-mono text-xs text-foreground/80">探索式</li>
+            <li className="font-mono text-xs text-foreground/80">代理信号</li>
+            <li className="font-mono text-xs text-foreground/80">非指控</li>
           </ul>
         </div>
       </div>
@@ -166,10 +166,10 @@ export function ColophonSection() {
         className="mt-24 pt-8 border-t border-border/20 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
       >
         <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-          MISBOT diffusion audit · 2026 course prototype · MIT-style academic use
+          MISBOT 扩散审计 · 2026 课程原型 · 学术使用
         </p>
         <p className="font-mono text-[10px] text-muted-foreground">
-          Bot labels are proxy signals. Accounts are not accused.
+          水军标签均为代理信号，不构成账号指控。
         </p>
       </div>
     </section>

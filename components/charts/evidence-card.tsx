@@ -42,8 +42,7 @@ export function EvidenceCard() {
       <div className="border border-border/40 bg-card/40 p-6">
         <span className="block h-2 w-2 bg-accent mb-3" aria-hidden />
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground leading-relaxed">
-          No matching evidence. Clear the search, switch to ALL, or reset the
-          time window.
+          当前筛选下没有匹配证据。请清空搜索、切回全部标签，或重置时间窗。
         </p>
       </div>
     );
@@ -64,7 +63,7 @@ export function EvidenceCard() {
           </Tag>
           <Tag>{event.date}</Tag>
           <Tag>{event.shortId}</Tag>
-          <Tag>USER {event.user}</Tag>
+          <Tag>用户 {event.user}</Tag>
         </header>
 
         <p className="font-sans text-sm md:text-base leading-relaxed text-foreground/95 line-clamp-6 md:line-clamp-none flex-1">
@@ -74,22 +73,22 @@ export function EvidenceCard() {
         {event.analysis && (
           <p className="mt-4 font-mono text-[11px] leading-relaxed text-muted-foreground">
             <span className="font-medium text-accent uppercase tracking-[0.2em]">
-              Fact-check ·{" "}
+              事实核查 ·{" "}
             </span>
             {event.analysis}
           </p>
         )}
 
         <div className="mt-5 grid grid-cols-3 gap-px bg-border/30">
-          <Stat label="Comments" value={event.commentCount ?? 0} />
-          <Stat label="Reposts" value={event.repostCount ?? 0} />
-          <Stat label="Likes" value={event.likeCount ?? 0} />
+          <Stat label="评论" value={event.commentCount ?? 0} />
+          <Stat label="转发" value={event.repostCount ?? 0} />
+          <Stat label="点赞" value={event.likeCount ?? 0} />
         </div>
 
         {participantActors.length > 0 && (
           <div className="mt-4">
             <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 mb-2">
-              Participants
+              参与者
             </span>
             <div className="flex flex-wrap gap-1.5">
               {participantActors.map((actor) => {
@@ -134,7 +133,7 @@ export function EvidenceCard() {
 
         <div className="mt-auto pt-5">
           <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 mb-1.5">
-            Timeline position
+            时间线位置
           </span>
           <div className="h-12">
             <TimelineMiniMap eventId={event.id} />

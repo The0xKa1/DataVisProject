@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo } from "react";
 import { NetworkGraph } from "@/components/charts/network-graph";
+import { PropagationSpace } from "@/components/charts/propagation-space";
 import { EvidenceCard } from "@/components/charts/evidence-card";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useSelectedBurst, useSelectedGraphIndex } from "@/lib/store/selectors";
 import { cn } from "@/lib/utils";
-import { compactFmt, fmt, labelName } from "@/lib/format";
-import type { BurstWindow, CoordinationSummary, GraphShard, HubActor, TemplateSignal } from "@/lib/charts/types";
+import { actorLabelName, compactFmt, fmt, labelName, selectionRuleName } from "@/lib/format";
+import type { BurstWindow, CoordinationSummary, EventGraphIndex, EventItem, GraphEdge, GraphNode, GraphShard, HubActor, TemplateSignal } from "@/lib/charts/types";
+
+const SUMMARY_NODE_THRESHOLD = 360;
+const SUMMARY_EDGE_THRESHOLD = 720;
 
 function parseMonthStart(month: string): Date | null {
   const [year, monthNo] = month.split("-").map((part) => Number.parseInt(part, 10));
@@ -21,12 +25,126 @@ function parseMonthEnd(month: string): Date | null {
   return new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59);
 }
 
-function pickBurstEventId(burst: BurstWindow, coordination: CoordinationSummary | undefined): string | null {
-  const ids = new Set(burst.eventIds);
-  const rich = coordination?.eventGraphIndex
-    ?.filter((entry) => ids.has(entry.eventId) && entry.shard)
-    .sort((a, b) => (b.cascadeEdges - a.cascadeEdges) || (b.participantCount - a.participantCount));
-  return rich?.[0]?.eventId ?? burst.eventIds[0] ?? null;
+function pickGraphEventId(eventIds: string[] | undefined): string | null {
+  return eventIds?.[0] ?? null;
+}
+
+function pickBurstEventId(burst: BurstWindow, coordination?: CoordinationSummary): string | null {
+  const indexById = new Map((coordination?.eventGraphIndex ?? []).map((entry) => [entry.eventId, entry]));
+  const ranked = [...(burst.eventIds ?? [])].sort((a, b) => {
+    const aIndex = indexById.get(a);
+    const bIndex = indexById.get(b);
+    const score = (entry?: EventGraphIndex) =>
+      (entry?.label === "fake" ? 100000 : 0) +
+      (entry?.fullGraph ? 50000 : 0) +
+      (entry?.participantCount ?? 0) * 4 +
+      (entry?.botShare ?? 0) * 1000 +
+      (entry?.score ?? 0) / 100;
+    return score(bIndex) - score(aIndex);
+  });
+  return pickGraphEventId(ranked);
+}
+
+function buildAutoGraphShard(graphIndex: EventGraphIndex, event: EventItem | null): GraphShard {
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+  const eventNodeId = `m:${graphIndex.eventId}`;
+  const directInteractions =
+    (event?.repostCount ?? graphIndex.repostEdges ?? 0) +
+    (event?.commentCount ?? graphIndex.commentEdges ?? 0) +
+    (event?.attitudeCount ?? 0);
+  const eventWeight = Math.max(1, event?.score ?? directInteractions);
+
+  nodes.push({
+    id: eventNodeId,
+    kind: "microblog",
+    label: graphIndex.label,
+    sourceType: graphIndex.sourceType,
+    name: graphIndex.shortId,
+    text: event?.text ?? "",
+    weight: eventWeight,
+    botShare: graphIndex.botShare,
+  });
+
+  function addActorNode(
+    suffix: string,
+    name: string,
+    weight: number,
+    fakeShare: number,
+    botLabel: GraphNode["botLabel"] = "unknown",
+    botScore = 0,
+  ): string | null {
+    if (weight <= 0) return null;
+    const id = `u:auto-${suffix}-${graphIndex.shortId}`;
+    nodes.push({
+      id,
+      kind: "actor",
+      name,
+      weight: Math.max(1, weight),
+      botLabel,
+      botScore,
+      labelSource: "aggregate",
+      botShare: botScore,
+      fakeShare,
+    });
+    return id;
+  }
+
+  function addEdge(source: string | null, target: string | null, type: GraphEdge["type"]) {
+    if (!source || !target || source === target) return;
+    edges.push({ source, target, type });
+  }
+
+  const fakeShare = graphIndex.label === "fake" ? 1 : 0;
+  const knownBots = event?.botUserCount ?? Math.round(graphIndex.knownUserCount * graphIndex.botShare);
+  const knownHumans = event?.humanUserCount ?? Math.max(0, graphIndex.knownUserCount - knownBots);
+  const unknownUsers = event?.unknownUserCount ?? Math.max(0, graphIndex.participantCount - graphIndex.knownUserCount);
+
+  const repostNode = addActorNode("repost", "转发参与者", event?.repostCount ?? graphIndex.repostEdges, fakeShare);
+  const commentNode = addActorNode("comment", "评论参与者", event?.commentCount ?? graphIndex.commentEdges, fakeShare);
+  const attitudeNode = addActorNode("attitude", "态度反馈参与者", event?.attitudeCount ?? 0, fakeShare);
+  const botNode = addActorNode("known-bots", "已知代理水军", knownBots, fakeShare, "bot", graphIndex.botShare);
+  const humanNode = addActorNode("known-humans", "已知真人", knownHumans, fakeShare, "human", 0);
+  const unknownNode = addActorNode("unknown-users", "未知用户", unknownUsers, fakeShare, "unknown", 0);
+
+  addEdge(repostNode, eventNodeId, "repost");
+  addEdge(commentNode, eventNodeId, "comment");
+  addEdge(attitudeNode, eventNodeId, "attitude");
+  addEdge(botNode, eventNodeId, "repost");
+  addEdge(humanNode, eventNodeId, "comment");
+  addEdge(unknownNode, eventNodeId, "attitude");
+
+  const cascadeLevels = Math.min(8, Math.max(0, graphIndex.cascadeDepth));
+  let previous: string | null = eventNodeId;
+  for (let level = 1; level <= cascadeLevels; level += 1) {
+    const remaining = Math.max(1, Math.round((graphIndex.cascadeEdges || directInteractions || 1) / (level + 1)));
+    const layerNode = addActorNode(`cascade-l${level}`, `级联深度 ${level}`, remaining, fakeShare);
+    addEdge(layerNode, previous, "repostCascade");
+    previous = layerNode;
+  }
+
+  if (nodes.length === 1) {
+    const summaryNode = addActorNode("summary", "聚合参与者", graphIndex.participantCount, fakeShare);
+    addEdge(summaryNode, eventNodeId, "attitude");
+  }
+
+  const omittedNodes = Math.max(0, graphIndex.participantCount + 1 - nodes.length);
+  const possibleEdges =
+    graphIndex.repostEdges +
+    graphIndex.commentEdges +
+    Math.max(0, event?.attitudeCount ?? 0);
+  const omittedEdges = Math.max(0, possibleEdges - edges.length);
+
+  return {
+    eventId: graphIndex.eventId,
+    shortId: graphIndex.shortId,
+    graph: { nodes, edges },
+    visibleNodes: nodes.length,
+    visibleEdges: edges.length,
+    omittedNodes,
+    omittedEdges,
+    selectionRule: "auto-computed aggregate propagation sketch from event-level counts; raw participant edges were not embedded",
+  };
 }
 
 export function AnalystConsoleSection() {
@@ -58,53 +176,47 @@ export function AnalystConsoleSection() {
     if (!selectedId) setSelected(pickBurstEventId(firstBurst, currentCoordination));
   }, [data, selectedBurstId, selectedId, setSelectedBurst, setSelected]);
 
-  const inlineShard = useMemo(() => {
-    if (!graphIndex || !coordination?.caseGraphs?.length) return null;
-    return coordination.caseGraphs.find((shard) => shard.eventId === graphIndex.eventId) ?? null;
-  }, [coordination, graphIndex]);
+  const templateSignals = useMemo<TemplateSignal[]>(() => {
+    if (coordination?.templateSignals?.length) return coordination.templateSignals;
+    return (data?.phrases ?? []).map((phrase, index) => ({
+      id: `phrase-fallback-${index}`,
+      text: phrase.text,
+      count: phrase.count,
+      users: phrase.users,
+      botUsers: phrase.botUsers,
+      botShare: phrase.botShare,
+      eventIds: [],
+    }));
+  }, [coordination?.templateSignals, data?.phrases]);
 
   useEffect(() => {
     if (!graphIndex) {
       setGraphShard(null);
       return;
     }
-    if (inlineShard) {
-      setGraphShard(inlineShard);
-      return;
-    }
-    if (!graphIndex.shard) {
-      setGraphShard(null);
-      return;
-    }
-
     const controller = new AbortController();
+    const graphUrl = graphIndex.fullGraph
+      ? `/data/${graphIndex.fullGraph}`
+      : `/api/misbot/event-graph/${graphIndex.eventId}`;
     setGraphShardLoading();
-    fetch(`/data/${graphIndex.shard}`, { signal: controller.signal })
+    fetch(graphUrl, { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error(`Shard ${response.status}`);
+        if (!response.ok) throw new Error(`完整图 ${response.status}`);
         return response.json() as Promise<GraphShard>;
       })
-      .then((shard) => setGraphShard(shard))
+      .then((graph) => setGraphShard(graph))
       .catch((error) => {
         if (controller.signal.aborted) return;
-        setGraphShardError(error instanceof Error ? error.message : "Graph shard failed");
+        setGraphShardError(error instanceof Error ? error.message : "完整图加载失败");
       });
     return () => controller.abort();
-  }, [graphIndex, inlineShard, setGraphShard, setGraphShardError, setGraphShardLoading]);
+  }, [graphIndex, setGraphShard, setGraphShardError, setGraphShardLoading]);
 
   const emptyShard = useMemo<GraphShard | null>(() => {
     if (!graphIndex) return null;
-    return {
-      eventId: graphIndex.eventId,
-      shortId: graphIndex.shortId,
-      graph: { nodes: [], edges: [] },
-      visibleNodes: 0,
-      visibleEdges: 0,
-      omittedNodes: graphIndex.participantCount,
-      omittedEdges: graphIndex.cascadeEdges,
-      selectionRule: graphIndex.shard ? "Shard unavailable" : "No bounded shard was generated for this event",
-    };
-  }, [graphIndex]);
+    const event = data?.events.find((item) => item.id === graphIndex.eventId) ?? null;
+    return buildAutoGraphShard(graphIndex, event);
+  }, [data?.events, graphIndex]);
 
   if (!data || !coordination) {
     return null;
@@ -113,27 +225,32 @@ export function AnalystConsoleSection() {
   const selectedEvent = graphIndex
     ? data.events.find((event) => event.id === graphIndex.eventId)
     : null;
-  const graphForRender = graphShard ?? inlineShard ?? emptyShard;
+  const graphForRender = graphShard ?? emptyShard;
+  const useSummaryView =
+    !!graphForRender &&
+    (graphForRender.visibleNodes > SUMMARY_NODE_THRESHOLD ||
+      graphForRender.visibleEdges > SUMMARY_EDGE_THRESHOLD);
 
   return (
     <section id="analyst-console" className="relative pl-6 md:pl-28 pr-6 md:pr-12 py-24 md:py-28">
       <header className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">
-            03 / Analyst Console
+            03 / 分析台
           </span>
           <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
-            FULL-COVERAGE AUDIT
+            全覆盖审计
           </h2>
         </div>
         <p className="max-w-lg font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground leading-relaxed md:text-right">
-          All {fmt.format(coordination.summary.eventCount ?? data.events.length)} MisBot instances drive the
-          rankings. The network renders bounded shards and discloses omitted topology.
+          全部 {fmt.format(coordination.summary.eventCount ?? data.events.length)} 条 MisBot 实例共同驱动排序。
+          {fmt.format(coordination.summary.fullGraphCount ?? 0)} 个优先案例与近期待审事件使用预计算完整图；
+          更早的选择会在本地原始记录可用时按需计算。
         </p>
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5">
-        <Panel className="xl:col-span-3" eyebrow="Burst windows" title="Abnormal windows">
+        <Panel className="xl:col-span-3" eyebrow="突发窗口" title="异常时间窗">
           <BurstList
             bursts={coordination.burstWindows}
             selected={selectedBurst}
@@ -151,52 +268,58 @@ export function AnalystConsoleSection() {
 
         <Panel
           className="xl:col-span-6 min-h-[620px]"
-          eyebrow="Propagation shard"
-          title={selectedEvent ? `${labelName(selectedEvent.label)} ${selectedEvent.shortId}` : "Shard loading"}
-          aside={graphIndex ? `${compactFmt.format(graphIndex.participantCount)} participants - ${compactFmt.format(graphIndex.cascadeEdges)} cascade edges` : undefined}
+          eyebrow="传播图"
+          title={selectedEvent ? `${labelName(selectedEvent.label)} ${selectedEvent.shortId}` : "图加载中"}
+          aside={graphIndex ? `${compactFmt.format(graphIndex.participantCount)} 名参与者 - ${compactFmt.format(graphIndex.cascadeEdges)} 条级联边` : undefined}
         >
           <div className="relative h-[520px] border border-border/30 bg-background/40">
-            <NetworkGraph shard={graphForRender} />
+            {useSummaryView && graphForRender ? (
+              <PropagationSpace shard={graphForRender} />
+            ) : (
+              <NetworkGraph shard={graphForRender} />
+            )}
             {graphShardStatus === "loading" && (
-              <OverlayText>Loading graph shard ...</OverlayText>
+              <OverlayText>正在计算完整图...</OverlayText>
             )}
             {graphShardStatus === "error" && (
-              <OverlayText>{graphShardError ?? "Graph shard failed"}</OverlayText>
+              <OverlayText>{graphShardError ?? "完整图加载失败"}</OverlayText>
             )}
           </div>
           {graphForRender && (
             <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground leading-relaxed">
-              {graphForRender.selectionRule}. Visible {fmt.format(graphForRender.visibleNodes)} nodes and{" "}
-              {fmt.format(graphForRender.visibleEdges)} edges; omitted {fmt.format(graphForRender.omittedNodes)} nodes and{" "}
-              {fmt.format(graphForRender.omittedEdges)} edges.
+              {useSummaryView ? "大型事件使用 3D 传播空间渲染完整图，可全屏、旋转、缩放、拖拽节点并点击账号高亮一跳邻域。" : ""}
+              {selectionRuleName(graphForRender.selectionRule)}。可见 {fmt.format(graphForRender.visibleNodes)} 个节点和{" "}
+              {fmt.format(graphForRender.visibleEdges)} 条边；省略 {fmt.format(graphForRender.omittedNodes)} 个节点和{" "}
+              {fmt.format(graphForRender.omittedEdges)} 条边。
             </p>
           )}
         </Panel>
 
         <div className="xl:col-span-3 grid grid-cols-1 gap-4 md:gap-5">
-          <Panel eyebrow="Hub candidates" title="Proxy-ranked amplifiers">
+          <Panel eyebrow="枢纽候选" title="按代理信号排序的放大者">
             <HubList
               hubs={coordination.hubActors}
               onSelect={(hub) => {
                 setSelectedActor(null);
                 setSelectedHub(hub.user);
-                if (hub.topEventIds[0]) setSelected(hub.topEventIds[0]);
+                setSelected(pickGraphEventId(hub.topEventIds));
               }}
             />
           </Panel>
-          <Panel eyebrow="Templates" title="Repeated phrasing">
+          <Panel eyebrow="话术模板" title="重复话术">
             <TemplateList
-              templates={coordination.templateSignals}
+              templates={templateSignals}
               onSelect={(template) => {
                 setSelectedActor(null);
                 setSearch(template.text);
-                if (template.eventIds[0]) setSelected(template.eventIds[0]);
+                const selectedTemplateEvent = pickGraphEventId(template.eventIds);
+                if (selectedTemplateEvent) setSelected(selectedTemplateEvent);
               }}
             />
           </Panel>
         </div>
 
-        <Panel className="xl:col-span-12" eyebrow="Evidence" title="Anonymized close read">
+        <Panel className="xl:col-span-12" eyebrow="证据" title="匿名细读">
           <EvidenceCard />
         </Panel>
       </div>
@@ -267,16 +390,16 @@ function BurstList({
                 {String(index + 1).padStart(2, "0")} - {burst.peakMonth}
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
-                {(burst.botShare * 100).toFixed(1)}% proxy bot
+                {(burst.botShare * 100).toFixed(1)}% 代理水军
               </span>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-px bg-border/30">
-              <MiniStat label="fake" value={compactFmt.format(burst.fake)} hot />
-              <MiniStat label="real" value={compactFmt.format(burst.real)} />
-              <MiniStat label="engage" value={compactFmt.format(burst.engagement)} />
+              <MiniStat label="虚假" value={compactFmt.format(burst.fake)} hot />
+              <MiniStat label="真实" value={compactFmt.format(burst.real)} />
+              <MiniStat label="互动" value={compactFmt.format(burst.engagement)} />
             </div>
             <p className="mt-3 line-clamp-2 font-mono text-[10px] uppercase tracking-[0.14em] leading-relaxed text-muted-foreground">
-              {burst.topKeywords.join(" / ") || "No keyword summary"}
+              {burst.topKeywords.join(" / ") || "暂无关键词摘要"}
             </p>
           </button>
         );
@@ -302,9 +425,9 @@ function HubList({ hubs, onSelect }: { hubs: HubActor[]; onSelect: (hub: HubActo
             <span className="font-mono text-[10px] text-accent">{hub.score.toFixed(1)}</span>
           </div>
           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            <span>{fmt.format(hub.eventCount)} events</span>
-            <span>{(hub.fakeShare * 100).toFixed(1)}% fake-heavy</span>
-            <span>{hub.botLabel ?? "unknown"} proxy</span>
+            <span>{fmt.format(hub.eventCount)} 个事件</span>
+            <span>{(hub.fakeShare * 100).toFixed(1)}% 虚假高占比</span>
+            <span>{actorLabelName(hub.botLabel)}</span>
           </div>
         </button>
       ))}
@@ -319,6 +442,16 @@ function TemplateList({
   templates: TemplateSignal[];
   onSelect: (template: TemplateSignal) => void;
 }) {
+  if (!templates.length) {
+    return (
+      <div className="border border-border/30 bg-card/30 px-3 py-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] leading-relaxed text-muted-foreground">
+          当前看板 JSON 没有生成重复话术模板。请重新处理数据，或检查源文本字段是否可用。
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
       {templates.slice(0, 10).map((template, index) => (
@@ -330,7 +463,7 @@ function TemplateList({
         >
           <div className="flex items-center justify-between gap-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              {String(index + 1).padStart(2, "0")} - {fmt.format(template.count)} hits
+              {String(index + 1).padStart(2, "0")} - {fmt.format(template.count)} 次命中
             </span>
             <span className="font-mono text-[10px] text-accent">
               {((template.botShare ?? 0) * 100).toFixed(1)}%

@@ -9,9 +9,9 @@ import {
 import { compactFmt } from "@/lib/format";
 
 const labels: { id: LabelFilter; text: string }[] = [
-  { id: "all", text: "ALL" },
-  { id: "fake", text: "FAKE" },
-  { id: "real", text: "REAL" },
+  { id: "all", text: "全部" },
+  { id: "fake", text: "虚假" },
+  { id: "real", text: "真实" },
 ];
 
 export function FilterBar() {
@@ -54,7 +54,7 @@ export function FilterBar() {
           <div className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 bg-accent" aria-hidden />
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-              Filters
+              筛选
             </span>
           </div>
 
@@ -85,7 +85,7 @@ export function FilterBar() {
               checked={botHeavy}
               onChange={(e) => setBotHeavy(e.target.checked)}
             />
-            Bot heavy
+            水军占比高
           </label>
 
           {/* Search */}
@@ -93,7 +93,7 @@ export function FilterBar() {
             type="search"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="SEARCH KEYWORDS / PHRASES"
+            placeholder="搜索关键词 / 话术"
             className="min-w-0 flex-1 max-w-md border border-border bg-card/60 px-3 py-1.5 font-mono text-[11px] tracking-[0.08em] uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
 
@@ -104,20 +104,20 @@ export function FilterBar() {
               onClick={() => setDateRange(null)}
               className="border border-border px-3 py-1.5 font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground hover:border-accent hover:text-accent transition-colors"
             >
-              Reset window
+              重置窗口
             </button>
           )}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
           <span>
-            <b className="text-foreground font-medium">{compactFmt.format(total)}</b> instances
+            <b className="text-foreground font-medium">{compactFmt.format(total)}</b> 条实例
           </span>
           <span>
-            Window <b className="text-foreground font-medium">{dateText}</b>
+            时间窗 <b className="text-foreground font-medium">{dateText}</b>
           </span>
           <span className="hidden md:inline">
-            Exploratory · proxy signals · not accusation
+            探索式 · 代理信号 · 非指控
           </span>
         </div>
       </div>

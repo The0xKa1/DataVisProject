@@ -290,10 +290,10 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
                 show(
                   event,
                   `<b>${escapeHTML(ev.shortId)}</b>
-                    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">label</span><b>${labelName(ev.label)}</b></div>
-                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">comments</span><b>${compactFmt.format(ev.commentCount ?? 0)}</b></div>
-                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">reposts</span><b>${compactFmt.format(ev.repostCount ?? 0)}</b></div>
-                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">repost share</span><b>${repostPct}%</b></div>`
+                    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">标签</span><b>${labelName(ev.label)}</b></div>
+                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">评论</span><b>${compactFmt.format(ev.commentCount ?? 0)}</b></div>
+                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">转发</span><b>${compactFmt.format(ev.repostCount ?? 0)}</b></div>
+                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">转发占比</span><b>${repostPct}%</b></div>`
                 );
               } else {
                 const fakePct = ((d.fakeShare || 0) * 100).toFixed(0);
@@ -301,8 +301,8 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
                 show(
                   event,
                   `<b>${escapeHTML(d.name || d.id)}</b>
-                    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake share</span><b>${fakePct}%</b></div>
-                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">activity</span><b>${actPct}%</b></div>`
+                    <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假占比</span><b>${fakePct}%</b></div>
+                    <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">活跃度</span><b>${actPct}%</b></div>`
                 );
               }
             })
@@ -427,28 +427,28 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
       <svg
         ref={svgRef}
         role="img"
-        aria-label="Force-directed propagation network"
+        aria-label="力导向传播网络"
         className="block h-full w-full cursor-grab active:cursor-grabbing"
       />
       {(!data || !nodes.length) && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/40 border border-border/30">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
-            {data ? "No microblogs under current filter." : "Loading network ..."}
+            {data ? "当前筛选下没有微博。" : "正在加载网络..."}
           </span>
         </div>
       )}
       {data && nodes.length > 0 && (
         <div className="pointer-events-none absolute left-3 bottom-3 flex flex-wrap border border-border bg-card/70 backdrop-blur-sm font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
           <span className="border-r border-border px-3 py-1.5">
-            <b className="text-accent font-medium">{fmt.format(nodes.length)}</b> nodes
+            <b className="text-accent font-medium">{fmt.format(nodes.length)}</b> 节点
           </span>
           <span className="px-3 py-1.5">
-            <b className="text-accent font-medium">{fmt.format(links.length)}</b> edges
+            <b className="text-accent font-medium">{fmt.format(links.length)}</b> 边
           </span>
           {shard && (shard.omittedNodes > 0 || shard.omittedEdges > 0) && (
             <span className="border-l border-border px-3 py-1.5 text-muted-foreground">
-              omitted <b className="text-accent font-medium">{fmt.format(shard.omittedNodes)}</b> nodes ·{" "}
-              <b className="text-accent font-medium">{fmt.format(shard.omittedEdges)}</b> edges
+              省略 <b className="text-accent font-medium">{fmt.format(shard.omittedNodes)}</b> 节点 ·{" "}
+              <b className="text-accent font-medium">{fmt.format(shard.omittedEdges)}</b> 边
             </span>
           )}
         </div>

@@ -40,7 +40,7 @@ export function HeroSection() {
       {/* Left vertical labels */}
       <div className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2">
         <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground -rotate-90 origin-left block whitespace-nowrap">
-          AUDIT
+          审计
         </span>
       </div>
 
@@ -56,13 +56,12 @@ export function HeroSection() {
         </SplitFlapAudioProvider>
 
         <h2 className="font-[var(--font-bebas)] text-muted-foreground/60 text-[clamp(1rem,3vw,2rem)] mt-4 tracking-wide">
-          Weibo Bot/Misinformation Diffusion Audit
+          微博水军与虚假信息扩散审计
         </h2>
 
         <p className="mt-12 max-w-md font-mono text-sm text-muted-foreground leading-relaxed">
-          Exploratory visual analytics over Weibo misinformation diffusion and
-          bot participation. We surface coordination signals; we never accuse
-          accounts.
+          面向微博虚假信息扩散与水军参与的探索式可视分析。系统呈现协同信号，
+          不对账号作定罪式判断。
         </p>
 
         <div className="mt-16 flex items-center gap-8">
@@ -70,14 +69,14 @@ export function HeroSection() {
             href="#work"
             className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200"
           >
-            <ScrambleTextOnHover text="Open Dashboard" as="span" duration={0.6} />
+            <ScrambleTextOnHover text="进入看板" as="span" duration={0.6} />
             <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
           </a>
           <a
             href="#signals"
             className="font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
-            About the Data
+            数据说明
           </a>
         </div>
       </div>
@@ -85,7 +84,7 @@ export function HeroSection() {
       {/* Floating info tag */}
       <div className="absolute bottom-8 right-8 md:bottom-12 md:right-12">
         <div className="border border-border px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          v.0.6 / Course Prototype
+          v.0.6 / 课程原型
         </div>
       </div>
     </section>

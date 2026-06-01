@@ -10,28 +10,28 @@ gsap.registerPlugin(ScrollTrigger)
 const signals = [
   {
     date: "MisBot · 2024",
-    title: "23,622 instances",
-    note: "Weibo information instances spanning misinformation, verified posts, and trending claims.",
+    title: "23,622 条信息实例",
+    note: "覆盖虚假信息、已核验信息与热点声明的微博信息实例。",
   },
   {
-    date: "942,430 spread participants",
-    title: "Diffusion edges",
-    note: "Each repost, comment, or attitude on a participating microblog becomes a graph edge.",
+    date: "942,430 名传播参与者",
+    title: "扩散边",
+    note: "每一次转发、评论或态度反馈都会进入传播结构。",
   },
   {
-    date: "99,874 annotated",
-    title: "User labels",
-    note: "Hand-annotated bot/human/unknown labels on the core actor set; remainder are weak proxies.",
+    date: "99,874 个标注用户",
+    title: "用户标签",
+    note: "核心用户集合含人工标注的水军/真人/未知标签；其余为弱代理信号。",
   },
   {
-    date: "Hashed evidence",
-    title: "Anonymized text",
-    note: "User IDs SHA-256 hashed; evidence text truncated. No raw account names committed.",
+    date: "证据已哈希",
+    title: "匿名文本",
+    note: "用户 ID 经 SHA-256 哈希；证据文本被截断，不提交原始账号名。",
   },
   {
-    date: "Exploratory framing",
-    title: "Signals, not verdicts",
-    note: "Bot scores are proxy indicators only. The system never accuses any account of malicious intent.",
+    date: "探索式框架",
+    title: "信号，不是定罪",
+    note: "水军分数只是代理指标，系统不会指控任何账号具有恶意。",
   },
 ]
 
@@ -135,8 +135,8 @@ export function SignalsSection() {
 
       {/* Section header */}
       <div ref={headerRef} className="mb-16 pr-6 md:pr-12">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / Dataset</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">SOURCE &amp; SCALE</h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / 数据集</span>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">来源与规模</h2>
       </div>
 
       {/* Horizontal scroll container */}
@@ -179,7 +179,7 @@ function SignalCard({
         {/* Issue number - editorial style */}
         <div className="flex items-baseline justify-between mb-8">
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-            No. {String(index + 1).padStart(2, "0")}
+            编号 {String(index + 1).padStart(2, "0")}
           </span>
           <time className="font-mono text-[10px] text-muted-foreground/60">{signal.date}</time>
         </div>

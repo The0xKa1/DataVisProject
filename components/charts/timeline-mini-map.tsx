@@ -58,7 +58,7 @@ export function TimelineMiniMap({ eventId }: TimelineMiniMapProps) {
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-full"
       role="img"
-      aria-label="Timeline mini-map"
+      aria-label="时间线小地图"
     >
       {/* Brush range indicator */}
       {brushStart != null && brushEnd != null && (

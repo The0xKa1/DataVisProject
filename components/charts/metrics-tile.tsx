@@ -40,39 +40,39 @@ export function MetricsTile() {
     : "0.0";
   const windowText = dateRange
     ? `${formatTickMonth(dateRange[0])} -> ${formatTickMonth(dateRange[1])}`
-    : "ALL MONTHS";
+    : "全部月份";
 
   const metrics: Metric[] = [
     {
       num: "01",
-      label: "MICROBLOGS",
+      label: "微博",
       value: compactFmt.format(stats.microblogs),
-      sub: `${fakeRatio}% FAKE-LABELED`,
+      sub: `${fakeRatio}% 标为虚假`,
       hot: true,
     },
     {
       num: "02",
-      label: "ACTORS",
+      label: "参与者",
       value: compactFmt.format(stats.actors),
-      sub: "HASHED IDS ONLY",
+      sub: "仅显示哈希 ID",
     },
     {
       num: "03",
-      label: "COMMENTS",
+      label: "评论",
       value: compactFmt.format(stats.comments),
-      sub: "PROPAGATION EVIDENCE",
+      sub: "传播证据",
     },
     {
       num: "04",
-      label: "REPOSTS",
+      label: "转发",
       value: compactFmt.format(stats.reposts),
-      sub: "DIFFUSION EDGES",
+      sub: "扩散边",
     },
     {
       num: "05",
-      label: "CASE WINDOW",
+      label: "案例窗口",
       value: windowText,
-      sub: `${labelName(label)} · ${events.length} SAMPLES`,
+      sub: `${labelName(label)} · ${events.length} 条样本`,
     },
   ];
 

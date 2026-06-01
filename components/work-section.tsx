@@ -21,10 +21,10 @@ const panels = [
   {
     key: "network",
     number: "02",
-    category: "Network · Diffusion",
-    title: "Force-directed propagation",
+    category: "网络 · 扩散",
+    title: "力导向传播图",
     description:
-      "Microblog squares + actor splits · drag to rearrange · click a node to focus evidence",
+      "微博方块 + 参与者分裂编码 · 拖拽重排 · 点击节点聚焦证据",
     span: "col-span-2 row-span-7",
     persistHover: true,
     Component: NetworkGraph,
@@ -32,56 +32,56 @@ const panels = [
   {
     key: "timeline",
     number: "03",
-    category: "Timeline · Temporal",
-    title: "Monthly diffusion",
+    category: "时间线 · 时序",
+    title: "月度扩散",
     description:
-      "Stacked bars · fake (orange) over real (ink) · engagement line right axis · drag to filter date window",
+      "堆叠柱 · 虚假橙色叠加真实墨色 · 右轴互动折线 · 拖拽筛选时间窗",
     span: "col-span-2 row-span-4",
     Component: TimelineChart,
   },
   {
     key: "orbit",
     number: "04",
-    category: "Orbit · Scroll Story",
-    title: "Engagement orbit",
+    category: "轨道 · 滚动叙事",
+    title: "互动轨道",
     description:
-      "Scroll-driven camera · stars separate by label · radius = engagement · drag to rotate",
+      "滚动驱动镜头 · 星点按标签分离 · 半径表示互动量 · 拖拽旋转",
     span: "col-span-2 row-span-7",
     Component: OrbitScene,
   },
   {
     key: "keywords",
     number: "05",
-    category: "Keywords · Bubble Cloud",
-    title: "Narrative term cloud",
-    description: "Bubble area = term hits · warmer rings = fake-heavy usage · click to search",
+    category: "关键词 · 气泡云",
+    title: "叙事词云",
+    description: "气泡面积表示词项命中 · 暖色环表示虚假高占比使用 · 点击搜索",
     span: "col-span-1 row-span-7",
     Component: KeywordsChart,
   },
   {
     key: "actors",
     number: "06",
-    category: "Actors · Bubble Map",
-    title: "Amplifier bubble field",
-    description: "Bubble area = engagement · orange ring arc = fake-heavy participation",
+    category: "参与者 · 气泡图",
+    title: "放大者气泡场",
+    description: "气泡面积表示互动量 · 橙色圆弧表示虚假高占比参与",
     span: "col-span-1 row-span-7",
     Component: ActorsChart,
   },
   {
     key: "phrases",
     number: "07",
-    category: "Phrases · Templates",
-    title: "Repeated text signals",
-    description: "Re-used phrases · potential coordination templates",
+    category: "话术 · 模板",
+    title: "重复文本信号",
+    description: "复用话术 · 潜在协同模板",
     span: "col-span-2 row-span-6",
     Component: PhrasesList,
   },
   {
     key: "evidence",
     number: "08",
-    category: "Evidence · Sample",
-    title: "Anonymized evidence",
-    description: "Selected microblog text · click sibling rows to switch",
+    category: "证据 · 样本",
+    title: "匿名证据",
+    description: "选中微博文本 · 点击相邻行切换",
     span: "col-span-2 row-span-6",
     Component: EvidenceCard,
   },
@@ -165,15 +165,15 @@ export function WorkSection() {
       <div ref={headerRef} className="mb-12 md:mb-16 flex items-end justify-between gap-6">
         <div>
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">
-            02 / Experiments
+            02 / 实验
           </span>
           <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
-            DIFFUSION AUDIT
+            扩散审计
           </h2>
         </div>
         <p className="hidden md:block max-w-xs font-mono text-xs text-muted-foreground text-right leading-relaxed">
-          Eight coordinated views over Weibo misinformation diffusion. Brush time, filter
-          labels, isolate bot-heavy bursts, drill into anonymized evidence.
+          八个联动视图覆盖微博虚假信息扩散。刷选时间、筛选标签、
+          隔离水军高占比突发，并下钻到匿名证据。
         </p>
       </div>
 

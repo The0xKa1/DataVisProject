@@ -103,7 +103,7 @@ function buildStoryNetworkFallback(data: DashboardJSON): StoryNetwork | null {
     edges,
     focusRegions,
     bounds,
-    selectionRule: "runtime story projection from bounded graph shards",
+    selectionRule: "runtime story projection for scroll-driven audit context",
   };
 }
 
@@ -181,6 +181,16 @@ function buildFocusRegions(
   const overviewIds = nodes.map((node) => node.id);
   const burstIds = idsForEvents(firstBurst?.eventIds ?? [], eventNodeIds);
   const templateIds = idsForEvents(firstTemplate?.eventIds ?? [], eventNodeIds);
+  const burstFocusIds = expandEventFocus(firstBurst?.eventIds ?? [], eventNodeIds, nodes, edges, clusterNodeIds, true);
+  const templateFocusIds = expandEventFocus(firstTemplate?.eventIds ?? [], eventNodeIds, nodes, edges, clusterNodeIds, true);
+  const ringleaderNode = pickRingleaderNode(nodes);
+  const ringleaderClusterIds = ringleaderNode ? clusterNodeIds.get(ringleaderNode.cluster) ?? [] : [];
+  const ringleaderIds = ringleaderNode
+    ? [...new Set([...neighborNodeIds(ringleaderNode.id, edges), ...ringleaderClusterIds])]
+    : [];
+  const ringleaderEventIds = ringleaderIds
+    .map((id) => nodes.find((node) => node.id === id)?.eventId)
+    .filter((id): id is string => !!id);
   const selectedEvidenceId =
     firstBurst?.eventIds.find((eventId) => eventNodeIds.has(eventId)) ??
     fakeNodes.find((node) => node.eventId)?.eventId ??
@@ -199,7 +209,7 @@ function buildFocusRegions(
   return [
     focusFromNodes({
       id: "overview",
-      label: "All bounded story shards",
+      label: "全部叙事区域",
       nodeIds: overviewIds,
       eventIds: eventNodes.map((node) => node.eventId!).filter(Boolean),
       bounds,
@@ -207,12 +217,12 @@ function buildFocusRegions(
       scale: 0.82,
       labelFilter: "all",
       orbitPhase: 0,
-      summary: "The story opens on the whole bounded audit projection.",
+      summary: "叙事从完整审计投影打开。",
     }),
     focusFromNodes({
       id: "fake-burst",
-      label: firstBurst ? `Fake burst ${firstBurst.peakMonth}` : "Fake burst",
-      nodeIds: burstIds.length ? burstIds : fakeNodes.map((node) => node.id),
+      label: firstBurst ? `虚假突发 ${firstBurst.peakMonth}` : "虚假信息突发",
+      nodeIds: burstFocusIds.length ? burstFocusIds : burstIds.length ? burstIds : fakeNodes.map((node) => node.id),
       eventIds: firstBurst?.eventIds ?? fakeNodes.map((node) => node.eventId!).filter(Boolean),
       bounds,
       nodes,
@@ -221,11 +231,11 @@ function buildFocusRegions(
       dateRange: firstBurst ? dateRangeFromMonths(firstBurst.startMonth, firstBurst.endMonth) : undefined,
       selectedEventId: firstBurst?.eventIds.find((eventId) => eventNodeIds.has(eventId)),
       orbitPhase: 0.25,
-      summary: "The first jump isolates the strongest fake-heavy burst window.",
+      summary: "第一段跳转隔离虚假信息占比最高的突发窗口。",
     }),
     focusFromNodes({
       id: "propagation-core",
-      label: "Propagation core",
+      label: "扩散核心",
       nodeIds: firstClusterIds.length ? firstClusterIds : overviewIds,
       eventIds: firstShard?.eventId ? [firstShard.eventId] : [],
       bounds,
@@ -234,12 +244,12 @@ function buildFocusRegions(
       labelFilter: "fake",
       selectedEventId: firstShard?.eventId,
       orbitPhase: 0.42,
-      summary: "The camera moves into one bounded repost/comment cascade.",
+      summary: "镜头进入一条转发/评论级联。",
     }),
     focusFromNodes({
       id: "template-cluster",
-      label: "Repeated template cluster",
-      nodeIds: templateIds.length ? templateIds : burstIds,
+      label: "重复话术簇",
+      nodeIds: templateFocusIds.length ? templateFocusIds : templateIds.length ? templateIds : burstFocusIds,
       eventIds: firstTemplate?.eventIds ?? [],
       bounds,
       nodes,
@@ -248,11 +258,26 @@ function buildFocusRegions(
       search: firstTemplate?.text ?? "",
       selectedEventId: firstTemplate?.eventIds.find((eventId) => eventNodeIds.has(eventId)),
       orbitPhase: 0.58,
-      summary: "Repeated phrasing becomes a spatial focus rather than a separate gallery.",
+      summary: "重复话术被纳入空间焦点，而不是单独陈列。",
+    }),
+    focusFromNodes({
+      id: "ringleader-hunt",
+      label: ringleaderNode ? `组织者候选 ${ringleaderNode.name ?? ringleaderNode.refId}` : "组织者候选",
+      nodeIds: ringleaderIds.length ? ringleaderIds : botHeavyIds,
+      eventIds: ringleaderEventIds,
+      bounds,
+      nodes,
+      scale: 1.95,
+      labelFilter: "fake",
+      botHeavy: true,
+      selectedEventId: ringleaderEventIds[0],
+      selectedActorId: ringleaderNode?.refId,
+      orbitPhase: 0.68,
+      summary: "从水军代理分数、虚假参与占比与一跳邻域锁定疑似放大者。",
     }),
     focusFromNodes({
       id: "bot-heavy",
-      label: "Bot-heavy participation",
+      label: "水军高占比参与",
       nodeIds: botHeavyIds.length ? botHeavyIds : burstIds,
       eventIds: botHeavyIds
         .map((id) => nodes.find((node) => node.id === id)?.eventId)
@@ -265,11 +290,11 @@ function buildFocusRegions(
       dateRange: firstBurst ? dateRangeFromMonths(firstBurst.startMonth, firstBurst.endMonth) : undefined,
       selectedEventId: selectedEvidenceId,
       orbitPhase: 0.72,
-      summary: "Proxy-labeled bot-heavy participation is highlighted without turning it into a verdict.",
+      summary: "高水军代理参与被高亮，但不会被转化为定罪判断。",
     }),
     focusFromNodes({
       id: "evidence-focus",
-      label: "Evidence close read",
+      label: "证据细读",
       nodeIds: selectedNeighbors.length ? selectedNeighbors : selectedEvidenceNode ? [selectedEvidenceNode] : burstIds,
       eventIds: selectedEvidenceId ? [selectedEvidenceId] : [],
       bounds,
@@ -279,11 +304,11 @@ function buildFocusRegions(
       botHeavy: true,
       selectedEventId: selectedEvidenceId,
       orbitPhase: 0.92,
-      summary: "The final investigative move lands on one anonymized post and its local neighborhood.",
+      summary: "最后一步落到一条匿名微博及其局部邻域。",
     }),
     focusFromNodes({
       id: "limits",
-      label: "Audit limits",
+      label: "审计边界",
       nodeIds: overviewIds,
       eventIds: eventNodes.map((node) => node.eventId!).filter(Boolean),
       bounds,
@@ -291,7 +316,7 @@ function buildFocusRegions(
       scale: 0.95,
       labelFilter: "all",
       orbitPhase: 1,
-      summary: "The story pulls back to remind the analyst that topology is evidence, not a verdict.",
+      summary: "叙事拉远，提醒分析者拓扑只是证据，不是裁决。",
     }),
   ];
 }
@@ -311,6 +336,7 @@ function focusFromNodes({
   selectedEventId,
   orbitPhase,
   summary,
+  selectedActorId,
 }: {
   id: string;
   label: string;
@@ -326,6 +352,7 @@ function focusFromNodes({
   selectedEventId?: string;
   orbitPhase?: number;
   summary?: string;
+  selectedActorId?: string;
 }): StoryFocusRegion {
   const selected = nodeIds
     .map((nodeId) => nodes.find((node) => node.id === nodeId))
@@ -341,6 +368,7 @@ function focusFromNodes({
     nodeIds,
     eventIds,
     selectedEventId,
+    selectedActorId,
     labelFilter,
     botHeavy,
     search,
@@ -348,6 +376,19 @@ function focusFromNodes({
     orbitPhase,
     summary,
   };
+}
+
+function pickRingleaderNode(nodes: StoryNetworkNode[]): StoryNetworkNode | undefined {
+  return nodes
+    .filter((node) => node.kind === "actor")
+    .sort((a, b) => ringleaderScore(b) - ringleaderScore(a))[0];
+}
+
+function ringleaderScore(node: StoryNetworkNode): number {
+  const bot = node.botShare ?? 0;
+  const fake = node.fakeShare ?? 0;
+  const activity = Math.log1p(node.weight ?? 1) / 8;
+  return bot * 2.4 + fake * 2.8 + activity;
 }
 
 function computeBounds(nodes: StoryNetworkNode[]): StoryNetwork["bounds"] {
@@ -367,6 +408,28 @@ function computeBounds(nodes: StoryNetworkNode[]): StoryNetwork["bounds"] {
 
 function idsForEvents(eventIds: string[], eventNodeIds: Map<string, string>): string[] {
   return eventIds.map((eventId) => eventNodeIds.get(eventId)).filter((id): id is string => !!id);
+}
+
+function expandEventFocus(
+  eventIds: string[],
+  eventNodeIds: Map<string, string>,
+  nodes: StoryNetworkNode[],
+  edges: StoryNetworkEdge[],
+  clusterNodeIds: Map<string, string[]>,
+  includeCluster: boolean,
+): string[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const ids = new Set<string>();
+  for (const eventId of eventIds) {
+    const nodeId = eventNodeIds.get(eventId);
+    if (!nodeId) continue;
+    for (const neighborId of neighborNodeIds(nodeId, edges)) ids.add(neighborId);
+    if (!includeCluster) continue;
+    const node = nodeById.get(nodeId);
+    if (!node) continue;
+    for (const clusterNodeId of clusterNodeIds.get(node.cluster) ?? []) ids.add(clusterNodeId);
+  }
+  return [...ids];
 }
 
 function neighborNodeIds(nodeId: string, edges: StoryNetworkEdge[]): string[] {

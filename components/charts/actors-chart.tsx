@@ -83,7 +83,7 @@ export function ActorsChart() {
       .style("font-size", "9px")
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
-      .text("Bubble area = comments + reposts");
+      .text("气泡面积 = 评论 + 转发");
 
     g.append("text")
       .attr("x", 24)
@@ -93,7 +93,7 @@ export function ActorsChart() {
       .style("font-size", "9px")
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
-      .text("Ring arc = fake-heavy participation");
+      .text("圆环 = 虚假高占比参与");
 
     const arc = d3
       .arc<ActorBubble>()
@@ -112,10 +112,10 @@ export function ActorsChart() {
         show(
           event,
           `<b>${escapeHTML(d.user)}</b>
-            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">comments</span><b>${fmt.format(d.comments)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">reposts</span><b>${fmt.format(d.reposts)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">engagement</span><b>${fmt.format(d.totalInteractions)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake share</span><b>${(d.fakeShare * 100).toFixed(1)}%</b></div>`
+            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">评论</span><b>${fmt.format(d.comments)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">转发</span><b>${fmt.format(d.reposts)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">互动</span><b>${fmt.format(d.totalInteractions)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假占比</span><b>${(d.fakeShare * 100).toFixed(1)}%</b></div>`
         );
       })
       .on("mouseleave", hide);
@@ -178,7 +178,7 @@ export function ActorsChart() {
     <svg
       ref={svgRef}
       role="img"
-      aria-label="High-activity actor bubble map — size = engagement, ring = fake share"
+      aria-label="高活跃参与者气泡图：大小表示互动量，圆环表示虚假占比"
       className="w-full h-full"
     />
   );

@@ -119,6 +119,7 @@ export const useDashboardStore = create<DashboardState>()(
         search: focus.search ?? "",
         dateRange: parseStoryDateRange(focus),
         selectedId: focus.selectedEventId ?? null,
+        selectedActorId: focus.selectedActorId ?? null,
         orbitPhase: focus.orbitPhase ?? null,
       });
     },

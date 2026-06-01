@@ -71,15 +71,14 @@ export function ScrollytellingSection() {
         <header className="flex min-h-[100dvh] flex-col justify-end gap-8 pb-16 pt-28 md:pb-20">
           <div className="max-w-4xl">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">
-              02 / Case Study
+              02 / 案例研究
             </span>
             <h2 className="mt-4 max-w-3xl font-[var(--font-bebas)] text-6xl leading-none tracking-tight md:text-8xl">
-              BACKGROUND NETWORK AUDIT
+              背景网络审计
             </h2>
             <p className="mt-5 max-w-xl font-mono text-xs uppercase leading-relaxed tracking-[0.16em] text-muted-foreground">
-              Scroll to move across one stable MisBot projection. The network
-              does not relayout; the viewport, highlights, evidence, and
-              filters move together.
+              滚动浏览同一个稳定的 MisBot 投影。网络不会重新布局；
+              视窗、重点、证据与筛选器会一起移动。
             </p>
           </div>
           <div className="max-w-5xl">

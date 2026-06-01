@@ -494,14 +494,49 @@ def build_template_signals(
 def choose_case_event_ids(
     events: list[dict[str, Any]],
     burst_windows: list[dict[str, Any]],
+    template_signals: list[dict[str, Any]],
     hub_actors: list[dict[str, Any]],
     max_shards: int,
 ) -> list[str]:
+    events_by_id = {event["id"]: event for event in events}
+
+    def event_story_score(event_id: str) -> float:
+        event = events_by_id.get(event_id, {})
+        label_bonus = 4.0 if event.get("label") == "fake" else 0.0
+        bot_bonus = safe_float(event.get("botShare"), 0.0) * 3.0
+        scale_bonus = math.log1p(safe_float(event.get("score"), 0.0)) / 4.0
+        participant_bonus = math.log1p(
+            safe_int(event.get("commentCount"), 0)
+            + safe_int(event.get("repostCount"), 0)
+            + safe_int(event.get("attitudeCount"), 0)
+        ) / 7.0
+        return label_bonus + bot_bonus + scale_bonus + participant_bonus
+
+    def hub_story_score(actor: dict[str, Any]) -> float:
+        activity = (
+            safe_int(actor.get("comments"), 0)
+            + safe_int(actor.get("reposts"), 0)
+            + safe_int(actor.get("attitudes"), 0)
+        )
+        return (
+            safe_float(actor.get("fakeShare"), 0.0) * 3.0
+            + safe_float(actor.get("botScore"), 0.0) * 2.4
+            + math.log1p(activity) / 5.0
+            + math.log1p(safe_int(actor.get("eventCount"), 0)) / 5.0
+        )
+
     ordered: list[str] = []
-    for window in burst_windows[:8]:
-        ordered.extend(window.get("eventIds", [])[:2])
-    for actor in hub_actors[:16]:
+    for window in burst_windows[:2]:
+        ranked = sorted(window.get("eventIds", []), key=event_story_score, reverse=True)
+        ordered.extend(ranked[:3])
+    for template in template_signals[:6]:
+        ranked = sorted(template.get("eventIds", []), key=event_story_score, reverse=True)
+        ordered.extend(ranked[:1])
+    for actor in sorted(hub_actors, key=hub_story_score, reverse=True)[:16]:
         ordered.extend(actor.get("topEventIds", [])[:1])
+    for window in burst_windows[2:8]:
+        ranked = sorted(window.get("eventIds", []), key=event_story_score, reverse=True)
+        ordered.extend(ranked[:2])
     ordered.extend(event["id"] for event in events[:max_shards])
 
     seen: set[str] = set()
@@ -659,8 +694,168 @@ def build_graph_shard(
         "visibleEdges": len(edges),
         "omittedNodes": max(0, total_possible_nodes + 1 - len(nodes)),
         "omittedEdges": max(0, total_possible_edges - len(edges)),
-        "selectionRule": "top participants plus bounded repost/comment cascade edges",
+        "selectionRule": "头部参与者与有界转发/评论级联边",
     }
+
+
+def build_full_graph(
+    row: dict[str, Any],
+    event: dict[str, Any],
+    actor_stats: dict[str, dict[str, Any]],
+    labels: dict[str, UserLabel],
+) -> dict[str, Any]:
+    comment_users = list(iter_user_ids(row.get("comment_users")))
+    repost_users = list(iter_user_ids(row.get("repost_users")))
+    attitude_users = list(iter_user_ids(row.get("attitude_users")))
+    comment_set = set(comment_users)
+    repost_set = set(repost_users)
+    attitude_set = set(attitude_users)
+    participant_counter = Counter(comment_users)
+    participant_counter.update(repost_users)
+    participant_counter.update(attitude_users)
+
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[tuple[str, str, str], dict[str, str]] = {}
+    event_node_id = f"m:{event['id']}"
+    nodes[event_node_id] = {
+        "id": event_node_id,
+        "kind": "microblog",
+        "label": event["label"],
+        "sourceType": event.get("sourceType"),
+        "name": event["shortId"],
+        "text": event.get("text", ""),
+        "weight": max(1, event.get("score", 1)),
+        "botShare": event.get("botShare", 0.0),
+        "x": 480.0,
+        "y": 280.0,
+    }
+
+    def add_actor(uid: Any) -> str | None:
+        if uid in (None, ""):
+            return None
+        raw_uid = str(uid)
+        node_id = f"u:{sha_short(raw_uid)}"
+        if node_id not in nodes:
+            node = actor_graph_node(raw_uid, actor_stats, labels)
+            node["weight"] = max(1, participant_counter.get(raw_uid, node.get("weight", 1)))
+            nodes[node_id] = node
+        return node_id
+
+    def add_edge(source: str | None, target: str | None, edge_type: str) -> None:
+        if not source or not target or source == target:
+            return
+        key = (source, target, edge_type)
+        edges.setdefault(key, {"source": source, "target": target, "type": edge_type})
+
+    for uid in repost_set:
+        add_edge(add_actor(uid), event_node_id, "repost")
+    for uid in comment_set:
+        add_edge(add_actor(uid), event_node_id, "comment")
+    for uid in attitude_set:
+        add_edge(add_actor(uid), event_node_id, "attitude")
+
+    repost_graph = row.get("repost_graph") if isinstance(row.get("repost_graph"), dict) else {}
+    repost_nodes = repost_graph.get("nodes") or []
+    for edge in repost_graph.get("edges") or []:
+        if not isinstance(edge, list) or len(edge) < 2:
+            continue
+        source_index = safe_int(edge[0], -1)
+        target_index = safe_int(edge[1], -1)
+        if source_index < 0 or target_index < 0:
+            continue
+        if source_index >= len(repost_nodes) or target_index >= len(repost_nodes):
+            continue
+        source_uid = repost_nodes[source_index].get("name") if isinstance(repost_nodes[source_index], dict) else None
+        target_uid = repost_nodes[target_index].get("name") if isinstance(repost_nodes[target_index], dict) else None
+        add_edge(add_actor(source_uid), add_actor(target_uid), "repostCascade")
+
+    for graph in row.get("comment_graphs") or []:
+        if not isinstance(graph, dict):
+            continue
+        comment_nodes = graph.get("nodes") or []
+        graph_edges = graph.get("edges") or []
+        for edge in graph_edges:
+            if not isinstance(edge, list) or len(edge) < 2:
+                continue
+            source_index = safe_int(edge[0], -1)
+            target_index = safe_int(edge[1], -1)
+            if source_index < 0 or target_index < 0:
+                continue
+            if source_index >= len(comment_nodes) or target_index >= len(comment_nodes):
+                continue
+            source_node = comment_nodes[source_index] if isinstance(comment_nodes[source_index], dict) else {}
+            target_node = comment_nodes[target_index] if isinstance(comment_nodes[target_index], dict) else {}
+            source = add_actor(source_node.get("user_from"))
+            target = add_actor(target_node.get("user_from") or target_node.get("user_to"))
+            add_edge(source, target, "commentReply")
+        if not graph_edges:
+            for comment_node in comment_nodes:
+                if not isinstance(comment_node, dict) or not comment_node.get("user_to"):
+                    continue
+                source = add_actor(comment_node.get("user_from"))
+                target = add_actor(comment_node.get("user_to"))
+                add_edge(source, target, "commentReply")
+
+    apply_full_graph_layout(nodes, list(edges.values()), event_node_id)
+
+    return {
+        "eventId": event["id"],
+        "shortId": event["shortId"],
+        "graph": {"nodes": list(nodes.values()), "edges": list(edges.values())},
+        "visibleNodes": len(nodes),
+        "visibleEdges": len(edges),
+        "omittedNodes": 0,
+        "omittedEdges": 0,
+        "selectionRule": "由本地 MisBot 原始记录预计算得到的完整事件传播图",
+    }
+
+
+def apply_full_graph_layout(nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]], event_node_id: str) -> None:
+    direct: dict[str, list[str]] = {"repost": [], "comment": [], "attitude": []}
+    linked: set[str] = {event_node_id}
+    for edge in edges:
+        source = edge["source"]
+        target = edge["target"]
+        linked.add(source)
+        linked.add(target)
+        if target == event_node_id and edge["type"] in direct:
+            direct[edge["type"]].append(source)
+
+    ring_specs = [
+        ("repost", 125.0, -0.15),
+        ("comment", 230.0, 1.7),
+        ("attitude", 335.0, 3.35),
+    ]
+    for edge_type, radius, offset in ring_specs:
+        ids = sorted(set(direct[edge_type]))
+        place_on_ring(nodes, ids, 480.0, 280.0, radius, offset)
+
+    actor_ids = sorted(node_id for node_id in nodes if node_id.startswith("u:") and node_id not in linked)
+    place_on_ring(nodes, actor_ids, 480.0, 280.0, 430.0, 0.7)
+
+    # Actor-actor cascade/reply nodes are laid out in deterministic outer rings
+    # when they were not already direct participants.
+    remaining = [
+        node_id
+        for node_id, node in nodes.items()
+        if node_id.startswith("u:") and ("x" not in node or "y" not in node)
+    ]
+    place_on_ring(nodes, remaining, 480.0, 280.0, 430.0, 2.2)
+
+
+def place_on_ring(
+    nodes: dict[str, dict[str, Any]],
+    node_ids: list[str],
+    center_x: float,
+    center_y: float,
+    radius: float,
+    offset: float,
+) -> None:
+    total = max(1, len(node_ids))
+    for index, node_id in enumerate(node_ids):
+        angle = offset + (math.tau * index) / total
+        nodes[node_id]["x"] = round(center_x + math.cos(angle) * radius, 3)
+        nodes[node_id]["y"] = round(center_y + math.sin(angle) * radius * 0.72, 3)
 
 
 def write_graph_shards(
@@ -699,6 +894,83 @@ def write_graph_shards(
             if len(shards) == len(wanted):
                 return shards
     return shards
+
+
+def write_full_graphs(
+    args: argparse.Namespace,
+    info_root: Path,
+    events_by_id: dict[str, dict[str, Any]],
+    actor_stats: dict[str, dict[str, Any]],
+    labels: dict[str, UserLabel],
+    graph_dir: Path,
+    priority_event_ids: list[str] | None = None,
+) -> dict[str, str]:
+    if args.skip_full_graphs:
+        return {}
+    graph_dir.mkdir(parents=True, exist_ok=True)
+    base_name = graph_dir.name
+    graph_paths: dict[str, str] = {}
+    target_events = select_full_graph_events(events_by_id, args.full_graph_limit, priority_event_ids or [])
+    wanted = {event["id"] for event in target_events}
+    expected_files = {f"{event['shortId']}.json" for event in target_events}
+    prune_stale_full_graphs(graph_dir, expected_files)
+
+    for source_type, (filename, _label) in INFO_FILES.items():
+        path = find_file(info_root, filename)
+        if not path:
+            continue
+        for idx, row in enumerate(iter_jsonl(path)):
+            article = row.get("article") if isinstance(row.get("article"), dict) else {}
+            text_raw = get_first(article, "article_content", "text", "content", default="")
+            publish_time = get_first(article, "publish_time", "date", "created_at", default="")
+            event_id = hashlib.sha256(f"{source_type}:{idx}:{publish_time}:{text_raw}".encode("utf-8", "ignore")).hexdigest()
+            event = events_by_id.get(event_id)
+            if not event or event_id not in wanted:
+                continue
+            graph = build_full_graph(row, event, actor_stats, labels)
+            filename_out = f"{event['shortId']}.json"
+            graph["path"] = f"{base_name}/{filename_out}"
+            with (graph_dir / filename_out).open("w", encoding="utf-8") as handle:
+                json.dump(graph, handle, ensure_ascii=False, separators=(",", ":"))
+                handle.write("\n")
+            graph_paths[event_id] = graph["path"]
+            if len(graph_paths) == len(wanted):
+                return graph_paths
+    return graph_paths
+
+
+def select_full_graph_events(
+    events_by_id: dict[str, dict[str, Any]],
+    limit: int,
+    priority_event_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    events = sorted(
+        events_by_id.values(),
+        key=lambda event: (parse_datetime(event.get("date")) or datetime.min, event.get("id", "")),
+        reverse=True,
+    )
+    prioritized = [
+        events_by_id[event_id]
+        for event_id in (priority_event_ids or [])
+        if event_id in events_by_id
+    ]
+    ordered: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for event in prioritized + events:
+        event_id = event.get("id")
+        if not event_id or event_id in seen:
+            continue
+        seen.add(event_id)
+        ordered.append(event)
+    if limit <= 0:
+        return ordered
+    return ordered[:limit]
+
+
+def prune_stale_full_graphs(graph_dir: Path, expected_files: set[str]) -> None:
+    for path in graph_dir.glob("*.json"):
+        if path.name not in expected_files:
+            path.unlink()
 
 
 def story_node_radius(node: dict[str, Any]) -> float:
@@ -748,6 +1020,7 @@ def story_focus_region(
     search: str = "",
     date_range: dict[str, str] | None = None,
     selected_event_id: str | None = None,
+    selected_actor_id: str | None = None,
     orbit_phase: float | None = None,
     summary: str = "",
 ) -> dict[str, Any]:
@@ -770,21 +1043,51 @@ def story_focus_region(
         region["dateRange"] = date_range
     if selected_event_id:
         region["selectedEventId"] = selected_event_id
+    if selected_actor_id:
+        region["selectedActorId"] = selected_actor_id
     if orbit_phase is not None:
         region["orbitPhase"] = orbit_phase
     return region
+
+
+def story_neighbor_ids(node_id: str | None, edges: list[dict[str, Any]]) -> list[str]:
+    if not node_id:
+        return []
+    ids = {node_id}
+    for edge in edges:
+        if edge.get("source") == node_id:
+            ids.add(edge.get("target"))
+        if edge.get("target") == node_id:
+            ids.add(edge.get("source"))
+    return [node_id for node_id in ids if node_id]
+
+
+def story_hub_score(actor: dict[str, Any]) -> float:
+    activity = (
+        safe_int(actor.get("comments"), 0)
+        + safe_int(actor.get("reposts"), 0)
+        + safe_int(actor.get("attitudes"), 0)
+    )
+    return (
+        safe_float(actor.get("fakeShare"), 0.0) * 3.0
+        + safe_float(actor.get("botScore"), 0.0) * 2.4
+        + math.log1p(activity) / 5.0
+        + math.log1p(safe_int(actor.get("eventCount"), 0)) / 5.0
+    )
 
 
 def build_story_network(
     case_shards: list[dict[str, Any]],
     burst_windows: list[dict[str, Any]],
     template_signals: list[dict[str, Any]],
+    hub_actors: list[dict[str, Any]],
     events_by_id: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     nodes_by_id: dict[str, dict[str, Any]] = {}
     event_story_ids: dict[str, str] = {}
+    actor_story_ids: dict[str, str] = {}
     cluster_node_ids: dict[str, list[str]] = {}
     shards = case_shards[:8]
 
@@ -794,7 +1097,7 @@ def build_story_network(
             "edges": [],
             "focusRegions": [],
             "bounds": {"minX": -1, "minY": -1, "maxX": 1, "maxY": 1},
-            "selectionRule": "no story shards available",
+            "selectionRule": "没有可用叙事图分片",
         }
 
     graph_radius = max(600.0, min(980.0, 420.0 + len(shards) * 80.0))
@@ -848,6 +1151,9 @@ def build_story_network(
             cluster_node_ids[cluster].append(story_id)
             if event_id:
                 event_story_ids[event_id] = story_id
+            if raw_id.startswith("u:"):
+                actor_story_ids[raw_id] = story_id
+                actor_story_ids[raw_id[2:]] = story_id
 
         for edge in shard["graph"]["edges"]:
             source = raw_to_story.get(edge.get("source"))
@@ -882,11 +1188,66 @@ def build_story_network(
         for event_id in (first_template or {}).get("eventIds", [])
         if event_id in event_story_ids
     ]
+    def expanded_event_focus(event_ids: list[str], include_cluster: bool = False) -> list[str]:
+        expanded: list[str] = []
+        for event_id in event_ids:
+            event_node_id = event_story_ids.get(event_id)
+            if not event_node_id:
+                continue
+            expanded.extend(story_neighbor_ids(event_node_id, edges))
+            if include_cluster:
+                expanded.extend(cluster_node_ids.get(nodes_by_id[event_node_id].get("cluster"), []))
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for node_id in expanded:
+            if node_id and node_id not in seen:
+                seen.add(node_id)
+                ordered.append(node_id)
+        return ordered
+    burst_focus_ids = expanded_event_focus((first_burst or {}).get("eventIds", []), include_cluster=True)
+    template_focus_ids = expanded_event_focus((first_template or {}).get("eventIds", []), include_cluster=True)
     bot_node_ids = [
         node["id"]
         for node in nodes
         if safe_float(node.get("botShare"), 0) >= 0.25 or (node.get("kind") == "actor" and safe_float(node.get("fakeShare"), 0) >= 0.5)
     ]
+    selected_hub = next(
+        (
+            actor
+            for actor in sorted(hub_actors, key=story_hub_score, reverse=True)
+            if actor_story_ids.get(actor.get("user", "")) or any(event_id in event_story_ids for event_id in actor.get("topEventIds", []))
+        ),
+        None,
+    )
+    selected_hub_node_id = actor_story_ids.get((selected_hub or {}).get("user", "")) if selected_hub else None
+    selected_hub_ref_id = nodes_by_id[selected_hub_node_id]["refId"] if selected_hub_node_id else None
+    selected_hub_event_id = None
+    if selected_hub:
+        selected_hub_event_id = next(
+            (event_id for event_id in selected_hub.get("topEventIds", []) if event_id in event_story_ids),
+            None,
+        )
+    selected_hub_cluster_ids: list[str] = []
+    if selected_hub_node_id:
+        selected_hub_cluster = nodes_by_id[selected_hub_node_id].get("cluster")
+        selected_hub_cluster_ids = cluster_node_ids.get(selected_hub_cluster, [])
+        if not selected_hub_event_id:
+            selected_hub_event_id = next(
+                (
+                    nodes_by_id[node_id].get("eventId")
+                    for node_id in selected_hub_cluster_ids
+                    if nodes_by_id[node_id].get("eventId")
+                ),
+                None,
+            )
+    selected_hub_event_node_id = event_story_ids.get(selected_hub_event_id or "")
+    ringleader_ids = set(story_neighbor_ids(selected_hub_node_id, edges))
+    ringleader_ids.update(story_neighbor_ids(selected_hub_event_node_id, edges))
+    ringleader_ids.update(selected_hub_cluster_ids)
+    if selected_hub_node_id:
+        ringleader_ids.add(selected_hub_node_id)
+    if selected_hub_event_node_id:
+        ringleader_ids.add(selected_hub_event_node_id)
     selected_event_id = None
     if first_burst:
         selected_event_id = next((event_id for event_id in first_burst.get("eventIds", []) if event_id in event_story_ids), None)
@@ -906,19 +1267,19 @@ def build_story_network(
     focus_regions = [
         story_focus_region(
             region_id="overview",
-            label="All bounded story shards",
+            label="全部有界叙事分片",
             node_ids=overview_ids,
             event_ids=[node["eventId"] for node in event_nodes if node.get("eventId")],
             nodes_by_id=nodes_by_id,
             bounds=bounds,
             scale=0.82,
             orbit_phase=0,
-            summary="The story opens on the whole bounded audit projection.",
+            summary="叙事从完整有界审计投影打开。",
         ),
         story_focus_region(
             region_id="fake-burst",
-            label=f"Fake burst {first_burst['peakMonth']}" if first_burst else "Fake burst",
-            node_ids=burst_node_ids or fake_node_ids,
+            label=f"虚假突发 {first_burst['peakMonth']}" if first_burst else "虚假信息突发",
+            node_ids=burst_focus_ids or burst_node_ids or fake_node_ids,
             event_ids=(first_burst or {}).get("eventIds", []),
             nodes_by_id=nodes_by_id,
             bounds=bounds,
@@ -927,11 +1288,11 @@ def build_story_network(
             date_range=burst_range,
             selected_event_id=selected_event_id,
             orbit_phase=0.25,
-            summary="The first jump isolates the strongest fake-heavy burst window.",
+            summary="第一段跳转隔离虚假信息占比最高的突发窗口。",
         ),
         story_focus_region(
             region_id="propagation-core",
-            label="Propagation core",
+            label="扩散核心",
             node_ids=cluster_node_ids.get("cluster-1", overview_ids),
             event_ids=[shards[0].get("eventId")] if shards else [],
             nodes_by_id=nodes_by_id,
@@ -940,12 +1301,12 @@ def build_story_network(
             label_filter="fake",
             selected_event_id=shards[0].get("eventId") if shards else None,
             orbit_phase=0.42,
-            summary="The camera moves into one bounded repost/comment cascade.",
+            summary="镜头进入一条有界转发/评论级联。",
         ),
         story_focus_region(
             region_id="template-cluster",
-            label="Repeated template cluster",
-            node_ids=template_node_ids or burst_node_ids,
+            label="重复话术簇",
+            node_ids=template_focus_ids or template_node_ids or burst_focus_ids or burst_node_ids,
             event_ids=(first_template or {}).get("eventIds", []),
             nodes_by_id=nodes_by_id,
             bounds=bounds,
@@ -954,11 +1315,26 @@ def build_story_network(
             search=(first_template or {}).get("text", ""),
             selected_event_id=next((event_id for event_id in (first_template or {}).get("eventIds", []) if event_id in event_story_ids), None),
             orbit_phase=0.58,
-            summary="Repeated phrasing becomes a spatial focus rather than a separate gallery.",
+            summary="重复话术被纳入空间焦点，而不是单独陈列。",
+        ),
+        story_focus_region(
+            region_id="ringleader-hunt",
+            label=f"组织者候选 {(selected_hub or {}).get('user', '')}" if selected_hub else "组织者候选",
+            node_ids=[node_id for node_id in ringleader_ids if node_id] or bot_node_ids or burst_node_ids,
+            event_ids=[selected_hub_event_id] if selected_hub_event_id else [],
+            nodes_by_id=nodes_by_id,
+            bounds=bounds,
+            scale=1.95,
+            label_filter="fake",
+            bot_heavy=True,
+            selected_event_id=selected_hub_event_id,
+            selected_actor_id=selected_hub_ref_id,
+            orbit_phase=0.68,
+            summary="从水军代理分数、虚假参与占比与一跳邻域锁定疑似放大者。",
         ),
         story_focus_region(
             region_id="bot-heavy",
-            label="Bot-heavy participation",
+            label="水军高占比参与",
             node_ids=bot_node_ids or burst_node_ids,
             event_ids=[node.get("eventId") for node in nodes if node["id"] in bot_node_ids and node.get("eventId")],
             nodes_by_id=nodes_by_id,
@@ -969,11 +1345,11 @@ def build_story_network(
             date_range=burst_range,
             selected_event_id=selected_event_id,
             orbit_phase=0.72,
-            summary="Proxy-labeled bot-heavy participation is highlighted without turning it into a verdict.",
+            summary="高水军代理参与被高亮，但不会被转化为定罪判断。",
         ),
         story_focus_region(
             region_id="evidence-focus",
-            label="Evidence close read",
+            label="证据细读",
             node_ids=[node_id for node_id in evidence_ids if node_id],
             event_ids=[selected_event_id] if selected_event_id else [],
             nodes_by_id=nodes_by_id,
@@ -983,18 +1359,18 @@ def build_story_network(
             bot_heavy=True,
             selected_event_id=selected_event_id,
             orbit_phase=0.92,
-            summary="The final investigative move lands on one anonymized post and its local neighborhood.",
+            summary="最后一步落到一条匿名微博及其局部邻域。",
         ),
         story_focus_region(
             region_id="limits",
-            label="Audit limits",
+            label="审计边界",
             node_ids=overview_ids,
             event_ids=[node["eventId"] for node in event_nodes if node.get("eventId")],
             nodes_by_id=nodes_by_id,
             bounds=bounds,
             scale=0.95,
             orbit_phase=1,
-            summary="The story pulls back to remind the analyst that topology is evidence, not a verdict.",
+            summary="叙事拉远，提醒分析者拓扑只是证据，不是裁决。",
         ),
     ]
 
@@ -1003,7 +1379,7 @@ def build_story_network(
         "edges": edges,
         "focusRegions": focus_regions,
         "bounds": bounds,
-        "selectionRule": "precomputed story projection from bounded graph shards",
+        "selectionRule": "由有界图分片预计算得到的叙事投影",
     }
 
 
@@ -1016,14 +1392,14 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
     if missing:
         expected = "\n".join(f"  - Information_Instances/{name}" for name in missing)
         raise SystemExit(
-            f"Missing MisBot information files under {raw_root}:\n{expected}\n"
-            "Download and unpack MisBot into data/raw/misbot before building."
+            f"{raw_root} 下缺少 MisBot 信息文件：\n{expected}\n"
+            "请先下载并解压 MisBot 到 data/raw/misbot，再重新构建。"
         )
 
     user_labels = load_user_labels(user_root)
     if not user_labels:
         print(
-            "warning: no MisBot user labels found; bot signals will be marked unknown",
+            "警告：没有找到 MisBot 用户标签；水军信号将标记为未知",
             file=sys.stderr,
         )
 
@@ -1149,7 +1525,6 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
                     "cascadeEdges": graph_summary["cascadeEdges"],
                     "cascadeDepth": max_tree_depth(repost_graph.get("edges") or []),
                     "score": score,
-                    "shard": f"misbot_graph_shards/{event_id[:8]}.json",
                 }
             )
             event_private[event_id] = {
@@ -1274,8 +1649,18 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
 
     burst_windows = build_burst_windows(timeline, events, keyword_counts_by_month, args.max_bursts)
     template_signals = build_template_signals(phrases, phrase_event_ids, args.max_templates)
-    case_event_ids = choose_case_event_ids(events, burst_windows, hub_actors, args.max_shards)
+    case_event_ids = choose_case_event_ids(events, burst_windows, template_signals, hub_actors, args.max_shards)
     events_by_id = {event["id"]: event for event in events}
+    full_graph_dir = Path(args.full_graph_dir) if args.full_graph_dir else Path(args.out).parent / "misbot_full_graphs"
+    full_graph_paths = write_full_graphs(
+        args=args,
+        info_root=info_root,
+        events_by_id=events_by_id,
+        actor_stats=actor_stats,
+        labels=user_labels,
+        graph_dir=full_graph_dir,
+        priority_event_ids=case_event_ids,
+    )
     shard_dir = Path(args.shard_dir) if args.shard_dir else Path(args.out).parent / "misbot_graph_shards"
     shards = write_graph_shards(
         args=args,
@@ -1287,17 +1672,17 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
         shard_dir=shard_dir,
     )
     for entry in event_graph_index:
-        shard = shards.get(entry["eventId"])
-        if shard:
-            entry["shard"] = shard["path"]
-        else:
-            entry.pop("shard", None)
+        full_graph_path = full_graph_paths.get(entry["eventId"])
+        if full_graph_path:
+            entry["fullGraph"] = full_graph_path
+        entry.pop("shard", None)
     event_graph_index.sort(key=lambda row: (row["score"], row["botShare"], row["cascadeEdges"]), reverse=True)
     case_graphs = [shards[event_id] for event_id in case_event_ids if event_id in shards][: args.inline_case_graphs]
     story_network = build_story_network(
         [shards[event_id] for event_id in case_event_ids if event_id in shards],
         burst_windows,
         template_signals,
+        hub_actors,
         events_by_id,
     )
     default_case_graph = max(
@@ -1309,10 +1694,10 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
 
     return {
         "source": {
-            "name": "MisBot: Weibo Misinformation and Social Bot Participation Dataset",
+            "name": "MisBot：微博虚假信息与社交水军参与数据集",
             "repository": "https://github.com/whr000001/MisBot",
             "paper": "https://arxiv.org/abs/2408.09613",
-            "note": "Only short hashed ids and truncated text are emitted. Weakly supervised bot labels are proxy signals, not accusations.",
+            "note": "仅输出短哈希 ID 与截断文本。弱监督水军标签只是代理信号，不构成账号指控。",
             "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         },
         "stats": {
@@ -1341,9 +1726,13 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
                 "fullCoverage": True,
                 "eventCount": len(events),
                 "actorUniverse": len(all_participants),
-                "visibleGraphPolicy": "Initial graph and network shards are bounded projections derived from full MisBot records.",
+                "visibleGraphPolicy": "分析台图文件优先覆盖滚动叙事案例，再用按发布时间倒序的 MisBot 事件补足；更早选择会从本地原始记录按需计算。",
                 "shardBasePath": "misbot_graph_shards",
                 "shardCount": len(shards),
+                "fullGraphBasePath": full_graph_dir.name,
+                "fullGraphCount": len(full_graph_paths),
+                "fullGraphLimit": args.full_graph_limit,
+                "fullGraphSelection": "priority_story_cases_then_latest_by_publish_date",
             },
             "burstWindows": burst_windows,
             "hubActors": hub_actors,
@@ -1365,23 +1754,26 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build public/data/misbot_dashboard.json from local MisBot raw data.")
-    parser.add_argument("--raw", default="data/raw/misbot", help="Path to the unpacked MisBot raw directory.")
-    parser.add_argument("--out", default="public/data/misbot_dashboard.json", help="Output dashboard JSON path.")
-    parser.add_argument("--limit-events", type=int, default=None, help="Debug only: stop after N information instances instead of full MisBot coverage.")
-    parser.add_argument("--shard-dir", default="", help="Directory for generated graph shards. Defaults to <out-dir>/misbot_graph_shards.")
-    parser.add_argument("--text-limit", type=int, default=280, help="Maximum evidence text length.")
-    parser.add_argument("--max-actors", type=int, default=2000, help="Maximum ranked actor rows emitted to the dashboard JSON.")
-    parser.add_argument("--max-hubs", type=int, default=80, help="Maximum coordination hub candidates emitted.")
-    parser.add_argument("--max-keywords", type=int, default=800, help="Maximum keyword rows emitted to the dashboard JSON.")
-    parser.add_argument("--max-phrases", type=int, default=800, help="Maximum repeated phrase rows emitted to the dashboard JSON.")
-    parser.add_argument("--max-templates", type=int, default=120, help="Maximum template signals emitted under coordination.")
-    parser.add_argument("--max-bursts", type=int, default=18, help="Maximum ranked burst windows emitted under coordination.")
-    parser.add_argument("--max-shards", type=int, default=36, help="Maximum graph shards to write for top case events.")
-    parser.add_argument("--inline-case-graphs", type=int, default=4, help="Number of generated shards also embedded into the main JSON.")
-    parser.add_argument("--shard-participants", type=int, default=96, help="Maximum top participant nodes seeded into each graph shard.")
-    parser.add_argument("--shard-max-nodes", type=int, default=160, help="Maximum visible nodes in a graph shard.")
-    parser.add_argument("--shard-max-edges", type=int, default=260, help="Maximum visible edges in a graph shard.")
+    parser = argparse.ArgumentParser(description="从本地 MisBot 原始数据构建 public/data/misbot_dashboard.json。")
+    parser.add_argument("--raw", default="data/raw/misbot", help="已解压的 MisBot 原始数据目录。")
+    parser.add_argument("--out", default="public/data/misbot_dashboard.json", help="输出看板 JSON 路径。")
+    parser.add_argument("--limit-events", type=int, default=None, help="仅调试：处理 N 条信息实例后停止，而不是覆盖完整 MisBot。")
+    parser.add_argument("--shard-dir", default="", help="生成图分片的目录。默认使用 <out-dir>/misbot_graph_shards。")
+    parser.add_argument("--full-graph-dir", default="", help="完整单事件图文件目录。默认使用 <out-dir>/misbot_full_graphs。")
+    parser.add_argument("--skip-full-graphs", action="store_true", help="不写入完整单事件图文件。")
+    parser.add_argument("--full-graph-limit", type=int, default=10_000, help="按发布时间预计算的最新事件完整图数量上限。使用 0 表示写入全部事件。")
+    parser.add_argument("--text-limit", type=int, default=280, help="证据文本最大长度。")
+    parser.add_argument("--max-actors", type=int, default=2000, help="写入看板 JSON 的参与者排序行数上限。")
+    parser.add_argument("--max-hubs", type=int, default=80, help="写入的协同枢纽候选数量上限。")
+    parser.add_argument("--max-keywords", type=int, default=800, help="写入看板 JSON 的关键词行数上限。")
+    parser.add_argument("--max-phrases", type=int, default=800, help="写入看板 JSON 的重复话术行数上限。")
+    parser.add_argument("--max-templates", type=int, default=120, help="写入 coordination 的话术模板信号数量上限。")
+    parser.add_argument("--max-bursts", type=int, default=18, help="写入 coordination 的突发窗口排序数量上限。")
+    parser.add_argument("--max-shards", type=int, default=36, help="为头部案例事件写入的图分片数量上限。")
+    parser.add_argument("--inline-case-graphs", type=int, default=4, help="同时嵌入主 JSON 的生成分片数量。")
+    parser.add_argument("--shard-participants", type=int, default=96, help="每个图分片中的头部参与者节点数量上限。")
+    parser.add_argument("--shard-max-nodes", type=int, default=160, help="每个图分片的可见节点数量上限。")
+    parser.add_argument("--shard-max-edges", type=int, default=260, help="每个图分片的可见边数量上限。")
     return parser.parse_args()
 
 
@@ -1394,9 +1786,9 @@ def main() -> None:
         json.dump(dashboard, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
     print(
-        f"wrote {out} with {len(dashboard['events'])} events, "
-        f"{len(dashboard['actors'])} actor rows, "
-        f"{dashboard.get('coordination', {}).get('summary', {}).get('shardCount', 0)} graph shards"
+        f"已写入 {out}：{len(dashboard['events'])} 个事件，"
+        f"{len(dashboard['actors'])} 行参与者，"
+        f"{dashboard.get('coordination', {}).get('summary', {}).get('fullGraphCount', 0)} 个完整图"
     )
 
 

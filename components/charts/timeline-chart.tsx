@@ -101,9 +101,9 @@ export function TimelineChart() {
         show(
           event,
           `<b>${escapeHTML(d.month)}</b>
-            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake</span><b>${fmt.format(d.fake)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">real</span><b>${fmt.format(d.real)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">engagement</span><b>${fmt.format(d.comments + d.reposts)}</b></div>`
+            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假</span><b>${fmt.format(d.fake)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">真实</span><b>${fmt.format(d.real)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">互动</span><b>${fmt.format(d.comments + d.reposts)}</b></div>`
         );
       })
       .on("mouseleave", hide);
@@ -207,7 +207,7 @@ export function TimelineChart() {
       .style("font-size", "9.5px")
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
-      .text("PEAKS REVEAL MISINFORMATION BURSTS");
+      .text("峰值揭示虚假信息突发");
 
     g.append("text")
       .attr("x", innerW)
@@ -218,7 +218,7 @@ export function TimelineChart() {
       .style("font-size", "9.5px")
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase")
-      .text("ENGAGEMENT");
+      .text("互动量");
 
     const peak = rows.reduce((best, row) => (row.fake > best.fake ? row : best), rows[0]);
     if (peak && peak.fake > 0) {
@@ -239,7 +239,7 @@ export function TimelineChart() {
         .style("font-size", "9px")
         .style("letter-spacing", "0.16em")
         .style("text-transform", "uppercase")
-        .text(`${peak.month} fake peak`);
+        .text(`${peak.month} 虚假峰值`);
     }
 
     // Brush
@@ -310,13 +310,13 @@ export function TimelineChart() {
       <svg
         ref={svgRef}
         role="img"
-        aria-label="Monthly diffusion timeline — drag to select a date window"
+        aria-label="月度扩散时间线：拖拽选择日期窗口"
         className="w-full h-full"
       />
       {(!data || !rows.length) && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/40 border border-border/30">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">
-            {data ? "No monthly rows under current filter." : "Loading timeline ..."}
+            {data ? "当前筛选下没有月度数据。" : "正在加载时间线..."}
           </span>
         </div>
       )}

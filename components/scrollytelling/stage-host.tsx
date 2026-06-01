@@ -42,13 +42,13 @@ export function StageHost({ active }: Props) {
 
   return (
     <div className="relative h-full w-full border border-border/40 bg-card/30 overflow-hidden">
-      <Layer ref={networkRef} label="NETWORK · DIFFUSION" badge="04" defaultOpacity={0}>
+      <Layer ref={networkRef} label="网络 · 扩散" badge="04" defaultOpacity={0}>
         <NetworkGraph />
       </Layer>
-      <Layer ref={timelineRef} label="TIMELINE · MONTHLY" badge="03" defaultOpacity={0}>
+      <Layer ref={timelineRef} label="时间线 · 月度" badge="03" defaultOpacity={0}>
         <TimelineChart />
       </Layer>
-      <Layer ref={orbitRef} label="ORBIT · STAR FIELD" badge="05" defaultOpacity={1}>
+      <Layer ref={orbitRef} label="轨道 · 星场" badge="05" defaultOpacity={1}>
         <OrbitScene />
       </Layer>
       <ActiveBadge active={active} />
@@ -84,7 +84,7 @@ const Layer = function Layer({
 
 function ActiveBadge({ active }: { active: StageKind }) {
   const label =
-    active === "network" ? "NETWORK" : active === "timeline" ? "TIMELINE" : "ORBIT";
+    active === "network" ? "网络" : active === "timeline" ? "时间线" : "轨道";
   return (
     <div
       className={cn(
@@ -101,10 +101,10 @@ function ActiveBadge({ active }: { active: StageKind }) {
 function InteractHint({ active }: { active: StageKind }) {
   const hint =
     active === "network"
-      ? "Drag · Zoom · Click node"
+      ? "拖拽 · 缩放 · 点击节点"
       : active === "timeline"
-        ? "Drag to brush · Reset via filter bar"
-        : "Drag to rotate · Click star";
+        ? "拖拽刷选 · 在筛选栏重置"
+        : "拖拽旋转 · 点击星点";
   return (
     <div
       className={cn(

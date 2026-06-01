@@ -15,42 +15,46 @@ export function PrinciplesSection() {
   const principles = [
     {
       number: "01",
+      kicker: "探索式",
       titleParts: [
-        { text: "EXPLORATORY", highlight: true },
-        { text: " · NOT ACCUSATION", highlight: false },
+        { text: "探索式", highlight: true },
+        { text: " · 非指控", highlight: false },
       ],
       description:
-        "Coordination patterns can suggest where to look. They never prove who acted. Treat every signal as a question, not a verdict.",
+        "协同模式只能提示哪里值得看，不能证明谁做了什么。每个信号都应被视为问题，而不是结论。",
       align: "left",
     },
     {
       number: "02",
+      kicker: "信号",
       titleParts: [
-        { text: "SIGNALS", highlight: true },
-        { text: " OVER LABELS", highlight: false },
+        { text: "重信号", highlight: true },
+        { text: " · 轻标签", highlight: false },
       ],
       description:
-        "Bot scores are weak proxies. Bursts, repeated phrases, and shared links are the actual evidence. Show the structure; let the user judge.",
+        "水军分数是弱代理。真正的证据来自突发、重复话术与共享链接。展示结构，把判断权留给分析者。",
       align: "right",
     },
     {
       number: "03",
+      kicker: "代理标签",
       titleParts: [
-        { text: "PROXY LABELS · ", highlight: false },
-        { text: "NOT TRUTH", highlight: true },
+        { text: "代理标签 · ", highlight: false },
+        { text: "非真相", highlight: true },
       ],
       description:
-        "MisBot's 407,801 weakly-annotated users are inferred, not confirmed. Surface the labels; tag them visibly as proxy; never treat them as ground truth.",
+        "MisBot 的 407,801 个弱标注用户来自推断，并非确认身份。标签需要可见，也必须被标为代理。",
       align: "left",
     },
     {
       number: "04",
+      kicker: "匿名证据",
       titleParts: [
-        { text: "EVIDENCE · ", highlight: false },
-        { text: "ANONYMIZED", highlight: true },
+        { text: "证据 · ", highlight: false },
+        { text: "已匿名", highlight: true },
       ],
       description:
-        "User IDs are SHA-256 hashed before they touch the dashboard. Microblog text is truncated. The audit operates on shapes, not identities.",
+        "用户 ID 进入看板前已做 SHA-256 哈希；微博文本被截断。审计关注传播形态，而不是现实身份。",
       align: "right",
     },
   ]
@@ -97,8 +101,8 @@ export function PrinciplesSection() {
     <section ref={sectionRef} id="principles" className="relative py-32 pl-6 md:pl-28 pr-6 md:pr-12">
       {/* Section header */}
       <div ref={headerRef} className="mb-24">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">03 / Principles</span>
-        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">AUDIT POSTURE</h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">04 / 原则</span>
+        <h2 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">审计姿态</h2>
       </div>
 
       {/* Staggered principles */}
@@ -112,7 +116,7 @@ export function PrinciplesSection() {
           >
             {/* Annotation label */}
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-4">
-              {principle.number} / {principle.titleParts[0].text.split(" ")[0]}
+              {principle.number} / {principle.kicker}
             </span>
 
             <h3 className="font-[var(--font-bebas)] text-4xl md:text-6xl lg:text-8xl tracking-tight leading-none">

@@ -5,8 +5,11 @@
 Front-end now uses a MIT-style background-network scrollytelling +
 analyst-console dashboard.
 The MisBot builder emits all 23,622 information instances, full aggregate
-rankings, coordination indexes, and bounded graph shards for interactive
-network inspection.
+rankings, coordination indexes, and complete event graph files for priority
+story cases plus recent events. The analyst console loads precomputed full
+propagation graphs, falls back to raw-data computation for older selections,
+and switches large graphs into a fullscreen-capable 3D propagation space
+instead of forcing thousands of nodes into one SVG force layout.
 
 ## Confirmed Decisions
 
@@ -18,9 +21,11 @@ network inspection.
   SplitFlapText hero, ScrambleTextOnHover CTAs, HighlightText scroll
   parallax in Principles, BitmapChevron rotate, AnimatedNoise canvas grain.
 - Data viz stack stays d3 v7 + three.js. The scrollytelling section now uses
-  a full-bleed sticky canvas story network with deterministic zoom/pan
-  presets; the analyst console lazy-loads bounded graph shards from
-  `public/data/misbot_graph_shards/`.
+  a full-bleed sticky canvas story network derived from real MisBot graph
+  shards with deterministic zoom/pan presets; the analyst console loads
+  precomputed full selected-event propagation graphs from
+  `public/data/misbot_full_graphs/` and renders large events as an interactive
+  3D propagation space.
 - State: Zustand store + selector hooks. Tooltip is a portal singleton
   with its own Zustand store so 60Hz mousemove never re-renders the page.
 - Story state: `activeStoryPresetId`, story viewport, and highlighted nodes
@@ -42,7 +47,7 @@ network inspection.
 - Primary data candidate: MisBot; CHECKED stays as offline demo fallback.
 - Raw MisBot data ignored by git at `data/raw/misbot`.
 - Processed full-coverage dashboard JSON at `public/data/misbot_dashboard.json`.
-- Generated graph shards live under `public/data/misbot_graph_shards/`.
+- Latest selected-event graphs live under `public/data/misbot_full_graphs/`.
 - Weakly supervised bot labels are proxy signals only, not account-level accusations.
 
 ## How to Run (TA-ready, ~5 min)
@@ -67,8 +72,10 @@ npm run dev
 ```
 
 The build no longer samples 60 events by default. It emits every MisBot
-information instance and writes deterministic bounded network shards for
-top-ranked case events. Use `--limit-events` only for local debug runs.
+information instance and coordination index, plus full per-event graphs for
+priority story cases and the latest events by publish date. Use
+`--full-graph-limit 0` to write all event graphs, or `--limit-events` only for
+local debug runs.
 
 Production build:
 
@@ -97,7 +104,8 @@ npm run build && npm start
 
 - Finalize UI polish pass: actor highlight + timeline mini-map integration is done.
 - Validate the full-coverage dashboard with real MisBot events, actor bot
-  scores, burst windows, and graph shards.
+  scores, burst windows, priority-case full event graphs, and large-graph
+  canvas interaction.
 - Confirm team members and division of work.
 - Keep AI usage, design rationale, and case studies documented in the final report or README sections when needed.
 
@@ -105,8 +113,9 @@ npm run build && npm start
 
 - Need to avoid committing private, restricted, or non-anonymized raw data.
 - Need to decide how much derived text evidence can be committed in the public repo under MisBot privacy guidance.
-- Full generated dashboard JSON is about 41 MB, so the TA run path is still
-  local-first rather than a tiny static demo artifact.
+- Full generated dashboard JSON is about 43 MB, and the complete graph folder
+  is about 397 MB, so the TA run path is local-first rather than a tiny static
+  demo artifact.
 
 ## Immediate Focus
 
@@ -117,11 +126,77 @@ npm run build && npm start
 
 ## Completion Notes
 
+### 3D large graph propagation pass (2026-06-01)
+
+- Replaced the large-graph chord/bundling direction with a direct 3D propagation
+  space: core event nodes sit near the center while participant actors are
+  distributed across risk-layered spherical shells.
+- Large graphs now support fullscreen inspection, orbit rotation, dolly zoom,
+  hover tooltips, actor/event selection, reset view, and direct node dragging.
+- Full graph edges remain visible as original links; selecting a node highlights
+  its one-hop neighborhood for ringleader-style topology inspection.
+
+### Deliverable scrollytelling + large-graph audit pass (2026-06-01)
+
+- Rebuilt the MisBot story-network selection so the homepage canvas is driven
+  by priority case shards: fake bursts, repeated-template events, suspect
+  amplifier neighborhoods, and evidence close reads all point to real event
+  IDs and precomputed full graph files.
+- Added a dedicated `ringleader-hunt` story preset. It carries
+  `selectedActorId`, highlights the candidate actor's local topology, and keeps
+  the framing as proxy evidence rather than accusation.
+- Story cards now show data-derived metrics for each preset: node count, event
+  count, selected event label/short ID, date range, proxy bot share, and the
+  generated story summary.
+- Large analyst-console graphs now use a 3D propagation space instead of
+  falling back to a static aggregate summary. Users can rotate, zoom, hover,
+  click actor/event nodes, drag nodes, reset the view, and inspect one-hop
+  neighborhoods.
+- Updated full-graph preprocessing to include priority story cases first, then
+  fill the remaining graph budget with recent MisBot events.
+
+### Full Chinese interface pass (2026-06-01)
+
+- Converted the visible application interface to Chinese, including the hero,
+  dataset cards, sticky filters, scrollytelling steps, analyst console panels,
+  propagation summary, chart legends/tooltips, empty states, navigation, and
+  metadata title/description.
+- Kept proper nouns and technical names such as MisBot, arXiv, Next.js, d3.js,
+  three.js, GSAP, and font names in their original form.
+- Added runtime translation helpers for legacy/generated graph labels and
+  selection rules so existing generated JSON/graph files render Chinese without
+  regenerating the 10,000 full graph files.
+- Updated future MisBot preprocessing/API output strings to Chinese for graph
+  selection rules, story-region labels, source notes, CLI warnings, and help text.
+- Verified with `npm run typecheck` and a local browser pass on
+  `http://localhost:3004`.
+
+### Full event graph preprocessing and Templates fallback (2026-06-01)
+
+- Analyst Console Templates now falls back from `coordination.templateSignals`
+  to top-level `phrases` rows when a dashboard JSON lacks template signals.
+- Added an explicit empty-state message so the Templates panel no longer
+  renders as a blank box when no repeated templates are emitted.
+- `scripts/build_misbot_dashboard.py` now writes complete event graph files for
+  the latest 10,000 events under `public/data/misbot_full_graphs/` and records
+  each path as `eventGraphIndex[].fullGraph`.
+- Analyst Console propagation graph now loads precomputed full graph files for
+  the latest 10,000 events; the raw API remains only as a fallback when an
+  older or missing generated graph file is selected.
+- Full graph validation: `public/data/misbot_dashboard.json` has 23,622 events,
+  23,622 graph index rows, 10,000 `fullGraph` paths, and zero missing graph
+  files in the current generated artifact; event graph index rows no longer
+  carry legacy `shard` paths.
+- Large Analyst Console graphs now switch from the d3-force node-link view to
+  an aggregated propagation-lane summary above 360 nodes or 720 edges. This
+  keeps the complete graph statistics visible while avoiding expensive
+  force-layout simulation on thousands of SVG nodes.
+
 ### EvidenceCard + NetworkGraph bidirectional actor highlighting (2026-05-30)
 
 - **Zustand store**: added `selectedActorId` (string | null) and `setSelectedActor`. Reset on filter clear and burst/hub/template selection changes.
 - **NetworkGraph**: actor node click calls `setSelectedActor`; highlight `useEffect` now processes both `selectedId` (microblog) and `selectedActorId` (actor), computing their 1-hop neighbor union. Nodes/edges outside this union are dimmed; the selected node(s) and their direct edges are highlighted in hot orange.
-- **EvidenceCard**: participant actors are mined from the active graph shard edges connected to the selected event. Rendered as toggle buttons below stats, with active state (accent border/bg) when `selectedActorId` matches. A dot marker (●) indicates actors with `fakeShare > 0.5`. Reverse highlight: if the actor is already selected in the store, the button gets accent styling even on first render.
+- **EvidenceCard**: participant actors are mined from the active graph edges connected to the selected event. Rendered as toggle buttons below stats, with active state (accent border/bg) when `selectedActorId` matches. A dot marker (●) indicates actors with `fakeShare > 0.5`. Reverse highlight: if the actor is already selected in the store, the button gets accent styling even on first render.
 - **TimelineMiniMap**: new lightweight SVG component at `components/charts/timeline-mini-map.tsx` — renders monthly fake/real stacked bars, a semi-transparent dateRange brush rectangle, and a vertical accent line at the selected event's month. Placed at the bottom of the EvidenceCard article with `mt-auto`.
 - Design: single select (clicking a new actor replaces previous), actor selection only highlights in network (does NOT change selected event).
 
@@ -139,10 +214,11 @@ npm run build && npm start
 - **Visual impact pass**: keyword and actor bar views replaced with bubble/cloud encodings; orbit now uses scroll progress to shift camera, star separation, and motion tempo.
 - **Full-coverage MisBot pass**: `scripts/build_misbot_dashboard.py` now emits all
   23,622 information instances, 800 keyword rows, 800 phrase rows, 2,000 actor
-  rows, coordination burst/hub/template indexes, and 36 bounded graph shards.
-- **Analyst console added**: full-data burst windows, lazy-loaded propagation
-  shards, proxy-ranked hub candidates, repeated templates, and evidence now sit
-  after the scrollytelling section.
+  rows, coordination burst/hub/template indexes, and latest-event complete
+  propagation graphs.
+- **Analyst console added**: full-data burst windows, propagation graphs,
+  proxy-ranked hub candidates, repeated templates, and evidence now sit after
+  the scrollytelling section.
 - **MIT-style story network added**: scroll steps now drive a sticky canvas
   background network through named viewport/highlight/evidence presets, while
-  the analyst console keeps the interactive d3-force shard graph.
+  the analyst console keeps the interactive d3-force event graph.

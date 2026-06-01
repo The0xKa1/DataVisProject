@@ -27,7 +27,8 @@ Primary dataset: MisBot, a Weibo misinformation and social bot participation dat
 - Scale noted by the repository: 23,622 Weibo information instances, 942,430 spread participants, 99,874 human-annotated users, and 407,801 weakly annotated active inference users.
 - Label caution: weakly supervised bot labels are proxy signals only; the system must not present individual accounts as proven malicious.
 - Local raw data path: `data/raw/misbot` (ignored by git).
-- Prototype data path: `public/data/misbot_dashboard.json`.
+- Prototype index path: `public/data/misbot_dashboard.json`.
+- Prototype full graph path: `public/data/misbot_full_graphs/`.
 
 Backup candidates:
 
@@ -70,20 +71,23 @@ Current dashboard uses a hybrid narrative + analyst-console structure:
 
 - SCROLL STORY · a MIT-style sticky background network whose viewport jumps
   between stable story regions as the user scrolls;
-- ANALYST CONSOLE · full-data burst ranking, bounded propagation shards, hub candidates, repeated templates, and evidence.
+- ANALYST CONSOLE · full-data burst ranking, precomputed full event propagation graphs for priority story cases plus recent events, hub candidates, repeated templates, and evidence.
 
 The full MisBot build emits all 23,622 information instances into
-`public/data/misbot_dashboard.json`. Network rendering stays interactive by
-loading bounded graph projections from `public/data/misbot_graph_shards/`,
-with visible and omitted topology counts disclosed in the UI.
+`public/data/misbot_dashboard.json` and writes complete graph files for
+priority story cases plus recent events under `public/data/misbot_full_graphs/`.
+The current full-graph artifact is local-first because those graph files are
+hundreds of MB.
 
 The coordinated views include:
 
 - METRICS · dataset-level counters with selected case-window context;
-- STORY NETWORK · precomputed/bounded canvas projection for scroll-driven
-  zoom/pan, highlights, and evidence focus;
+- STORY NETWORK · real MisBot graph-derived canvas projection for scroll-driven
+  zoom/pan, organizer-candidate highlights, and evidence focus;
 - TIMELINE · monthly fake/real stacked bars + engagement line + d3 brush;
-- NETWORK · d3-force propagation shard graph with drag, zoom, and selection;
+- NETWORK · d3-force graph for small events, switching to a fullscreen-capable
+  3D propagation space for large events so users can rotate, zoom, hover, click,
+  and drag actors in the complete graph;
 - ORBIT · three.js engagement starfield with scroll-driven camera phases and raycast selection;
 - KEYWORDS · keyword bubble cloud with term-size and fake-share encoding;
 - ACTORS · high-activity actor bubble field with engagement size and fake-share rings;

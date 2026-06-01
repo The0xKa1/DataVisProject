@@ -101,10 +101,10 @@ export function KeywordsChart() {
         show(
           event,
           `<b>${escapeHTML(d.keyword)}</b>
-            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">total</span><b>${fmt.format(d.total)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">real</span><b>${fmt.format(d.real)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake</span><b>${fmt.format(d.fake)}</b></div>
-            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">fake share</span><b>${fakeShare}%</b></div>`
+            <div class="mt-1 grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">总量</span><b>${fmt.format(d.total)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">真实</span><b>${fmt.format(d.real)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假</span><b>${fmt.format(d.fake)}</b></div>
+            <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">虚假占比</span><b>${fakeShare}%</b></div>`
         );
       })
       .on("mouseleave", hide);
@@ -157,12 +157,12 @@ export function KeywordsChart() {
       .style("letter-spacing", "0.18em")
       .style("text-transform", "uppercase");
 
-    legend.append("text").attr("fill", COLORS.muted).text("Bubble area = total term hits");
+    legend.append("text").attr("fill", COLORS.muted).text("气泡面积 = 词项命中总数");
     legend
       .append("text")
       .attr("y", 18)
       .attr("fill", COLORS.hot)
-      .text("Warmer = higher fake share");
+      .text("越暖 = 虚假占比越高");
 
     return () => {
       simulation.stop();
@@ -175,7 +175,7 @@ export function KeywordsChart() {
     <svg
       ref={svgRef}
       role="img"
-      aria-label="Keyword bubble cloud — size = total frequency, color = fake share"
+      aria-label="关键词气泡云：大小表示总频次，颜色表示虚假占比"
       className="w-full h-full"
     />
   );
