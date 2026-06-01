@@ -395,7 +395,7 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
         const sel = d3.select(this);
         sel.attr("opacity", isDim ? 0.18 : 1);
         sel
-          .selectAll<SVGRectElement, NetworkNode>("rect.core")
+          .selectAll<SVGRectElement, NetworkNode>("rect.core, rect.actor-frame")
           .attr("stroke", isHot ? COLORS.hot : COLORS.ink)
           .attr("stroke-width", isHot ? 2 : 1);
       });
