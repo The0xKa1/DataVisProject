@@ -65,3 +65,5 @@ tmp/
 
 # Playwright MCP browser snapshots / console dumps
 .playwright-mcp/
+
+public/data/
