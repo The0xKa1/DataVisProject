@@ -21,6 +21,7 @@
 
 # Node / frontend
 node_modules/
+local-node/
 dist/
 build/
 .vite/

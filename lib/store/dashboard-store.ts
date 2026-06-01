@@ -22,6 +22,7 @@ interface DashboardState {
   selectedId: string | null;
   selectedBurstId: string | null;
   selectedHubId: string | null;
+  selectedActorId: string | null;
   graphShard: GraphShard | null;
   graphShardStatus: "idle" | "loading" | "ready" | "error";
   graphShardError: string | null;
@@ -43,6 +44,7 @@ interface DashboardState {
   setSelected: (id: string | null) => void;
   setSelectedBurst: (id: string | null) => void;
   setSelectedHub: (id: string | null) => void;
+  setSelectedActor: (id: string | null) => void;
   setGraphShardLoading: () => void;
   setGraphShard: (shard: GraphShard | null) => void;
   setGraphShardError: (message: string) => void;
@@ -63,6 +65,7 @@ export const useDashboardStore = create<DashboardState>()(
     selectedId: null,
     selectedBurstId: null,
     selectedHubId: null,
+    selectedActorId: null,
     graphShard: null,
     graphShardStatus: "idle",
     graphShardError: null,
@@ -82,6 +85,7 @@ export const useDashboardStore = create<DashboardState>()(
     setSelected: (selectedId) => set({ selectedId }),
     setSelectedBurst: (selectedBurstId) => set({ selectedBurstId }),
     setSelectedHub: (selectedHubId) => set({ selectedHubId }),
+    setSelectedActor: (selectedActorId) => set({ selectedActorId }),
     setGraphShardLoading: () =>
       set({ graphShardStatus: "loading", graphShardError: null }),
     setGraphShard: (graphShard) =>
@@ -130,6 +134,7 @@ export const useDashboardStore = create<DashboardState>()(
         selectedId: null,
         selectedBurstId: null,
         selectedHubId: null,
+        selectedActorId: null,
       }),
   }))
 );

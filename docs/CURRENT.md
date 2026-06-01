@@ -95,6 +95,7 @@ npm run build && npm start
 
 ## Active Tasks
 
+- Finalize UI polish pass: actor highlight + timeline mini-map integration is done.
 - Validate the full-coverage dashboard with real MisBot events, actor bot
   scores, burst windows, and graph shards.
 - Confirm team members and division of work.
@@ -115,6 +116,14 @@ npm run build && npm start
 4. Confirm team responsibilities and presentation ownership.
 
 ## Completion Notes
+
+### EvidenceCard + NetworkGraph bidirectional actor highlighting (2026-05-30)
+
+- **Zustand store**: added `selectedActorId` (string | null) and `setSelectedActor`. Reset on filter clear and burst/hub/template selection changes.
+- **NetworkGraph**: actor node click calls `setSelectedActor`; highlight `useEffect` now processes both `selectedId` (microblog) and `selectedActorId` (actor), computing their 1-hop neighbor union. Nodes/edges outside this union are dimmed; the selected node(s) and their direct edges are highlighted in hot orange.
+- **EvidenceCard**: participant actors are mined from the active graph shard edges connected to the selected event. Rendered as toggle buttons below stats, with active state (accent border/bg) when `selectedActorId` matches. A dot marker (●) indicates actors with `fakeShare > 0.5`. Reverse highlight: if the actor is already selected in the store, the button gets accent styling even on first render.
+- **TimelineMiniMap**: new lightweight SVG component at `components/charts/timeline-mini-map.tsx` — renders monthly fake/real stacked bars, a semi-transparent dateRange brush rectangle, and a vertical accent line at the selected event's month. Placed at the bottom of the EvidenceCard article with `mt-auto`.
+- Design: single select (clicking a new actor replaces previous), actor selection only highlights in network (does NOT change selected event).
 
 - Repository initialized and pushed to public GitHub.
 - Topic finalized.

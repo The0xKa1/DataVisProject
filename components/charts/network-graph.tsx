@@ -35,8 +35,10 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
   const refsRef = useRef<NetworkRefs | null>(null);
   const data = useDashboardStore((s) => s.data);
   const selectedId = useDashboardStore((s) => s.selectedId);
+  const selectedActorId = useDashboardStore((s) => s.selectedActorId);
   const dateRange = useDashboardStore((s) => s.dateRange);
   const setSelected = useDashboardStore((s) => s.setSelected);
+  const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
   const events = useFilteredEvents();
   const { show, hide } = useTooltip();
 
@@ -274,6 +276,7 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
           // Interactions
           g.on("click", (_event, d) => {
             if (d.kind === "microblog") setSelected(d.id.slice(2));
+            else if (d.kind === "actor") setSelectedActor(d.id);
           })
             .on("mousemove", (event, d) => {
               if (!data) return;
@@ -357,39 +360,42 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
     });
   }, [nodes, links, dateRange, data, setSelected, show, hide]);
 
-  // selectedId — imperative highlight, no React re-render of nodes.
+  // selectedId + selectedActorId — imperative highlight, no React re-render.
   useEffect(() => {
     const refs = refsRef.current;
     if (!refs || !data) return;
     const { svg } = refs;
-    const selectedNodeId = selectedId ? `m:${selectedId}` : null;
+    const microblogNodeId = selectedId ? `m:${selectedId}` : null;
+    const actorNodeId = selectedActorId ?? null;
+    const isAnySelected = !!(microblogNodeId || actorNodeId);
+
+    // Collect 1-hop neighbors for both selections
     const neighbors = new Set<string>();
-    if (selectedNodeId) {
-      neighbors.add(selectedNodeId);
+    for (const id of [microblogNodeId, actorNodeId].filter(Boolean) as string[]) {
+      neighbors.add(id);
       for (const e of data.graph.edges) {
         const sId = linkId(e.source);
         const tId = linkId(e.target);
-        if (sId === selectedNodeId) neighbors.add(tId);
-        if (tId === selectedNodeId) neighbors.add(sId);
+        if (sId === id) neighbors.add(tId);
+        if (tId === id) neighbors.add(sId);
       }
       for (const e of links) {
         const sId = linkId(e.source);
         const tId = linkId(e.target);
-        if (sId === selectedNodeId) neighbors.add(tId);
-        if (tId === selectedNodeId) neighbors.add(sId);
+        if (sId === id) neighbors.add(tId);
+        if (tId === id) neighbors.add(sId);
       }
     }
 
     svg
       .selectAll<SVGGElement, NetworkNode>("g.node")
       .each(function (d) {
-        const isHot = selectedNodeId === d.id;
-        const isDim = !!selectedNodeId && !neighbors.has(d.id);
+        const isHot = d.id === microblogNodeId || d.id === actorNodeId;
+        const isDim = isAnySelected && !neighbors.has(d.id);
         const sel = d3.select(this);
         sel.attr("opacity", isDim ? 0.18 : 1);
-        // Highlight microblog cores
         sel
-          .selectAll<SVGRectElement, NetworkNode>("rect.core")
+          .selectAll<SVGRectElement, NetworkNode>("rect.core, rect.actor-frame")
           .attr("stroke", isHot ? COLORS.hot : COLORS.ink)
           .attr("stroke-width", isHot ? 2 : 1);
       });
@@ -399,17 +405,19 @@ export function NetworkGraph({ shard }: NetworkGraphProps = {}) {
       .each(function (d) {
         const sId = linkId(d.source);
         const tId = linkId(d.target);
-        const isHot =
-          !!selectedNodeId && (sId === selectedNodeId || tId === selectedNodeId);
-        const isDim =
-          !!selectedNodeId && sId !== selectedNodeId && tId !== selectedNodeId;
+        const connectsToSelection = isAnySelected &&
+          (neighbors.has(sId) && neighbors.has(tId));
+        const isHot = connectsToSelection &&
+          (sId === microblogNodeId || sId === actorNodeId ||
+           tId === microblogNodeId || tId === actorNodeId);
+        const isDim = isAnySelected && !connectsToSelection;
         const node = d3.select(this);
         node
           .attr("stroke", isHot ? COLORS.hot : edgeColor(d.type))
           .attr("stroke-width", isHot ? 1.5 : 1)
           .attr("stroke-opacity", isDim ? 0.06 : isHot ? 1 : 0.45);
       });
-  }, [selectedId, data, links]);
+  }, [selectedId, selectedActorId, data, links]);
 
   return (
     <div

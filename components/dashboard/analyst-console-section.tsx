@@ -39,6 +39,7 @@ export function AnalystConsoleSection() {
   const setSelected = useDashboardStore((s) => s.setSelected);
   const setSelectedBurst = useDashboardStore((s) => s.setSelectedBurst);
   const setSelectedHub = useDashboardStore((s) => s.setSelectedHub);
+  const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
   const setDateRange = useDashboardStore((s) => s.setDateRange);
   const setSearch = useDashboardStore((s) => s.setSearch);
   const setGraphShard = useDashboardStore((s) => s.setGraphShard);
@@ -140,6 +141,7 @@ export function AnalystConsoleSection() {
               const start = parseMonthStart(burst.startMonth);
               const end = parseMonthEnd(burst.endMonth);
               setSelectedBurst(burst.id);
+              setSelectedActor(null);
               if (start && end) setDateRange([start, end]);
               setSearch("");
               setSelected(pickBurstEventId(burst, coordination));
@@ -176,6 +178,7 @@ export function AnalystConsoleSection() {
             <HubList
               hubs={coordination.hubActors}
               onSelect={(hub) => {
+                setSelectedActor(null);
                 setSelectedHub(hub.user);
                 if (hub.topEventIds[0]) setSelected(hub.topEventIds[0]);
               }}
@@ -185,6 +188,7 @@ export function AnalystConsoleSection() {
             <TemplateList
               templates={coordination.templateSignals}
               onSelect={(template) => {
+                setSelectedActor(null);
                 setSearch(template.text);
                 if (template.eventIds[0]) setSelected(template.eventIds[0]);
               }}

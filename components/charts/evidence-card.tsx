@@ -1,15 +1,41 @@
 "use client";
 
+import { useMemo } from "react";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useFilteredEvents, useSelectedEvent } from "@/lib/store/selectors";
 import { fmt, labelName } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { GraphNode } from "@/lib/charts/types";
+import { TimelineMiniMap } from "./timeline-mini-map";
 
 export function EvidenceCard() {
   const events = useFilteredEvents();
   const event = useSelectedEvent(events);
   const setSearch = useDashboardStore((s) => s.setSearch);
   const setSelected = useDashboardStore((s) => s.setSelected);
+  const graphShard = useDashboardStore((s) => s.graphShard);
+  const selectedActorId = useDashboardStore((s) => s.selectedActorId);
+  const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
+  const data = useDashboardStore((s) => s.data);
+
+  // Compute participant actors connected to the selected event in the active graph.
+  const participantActors = useMemo(() => {
+    if (!event || !data) return [];
+    const sourceGraph = graphShard?.graph ?? data.graph;
+    const eventNodeId = `m:${event.id}`;
+    const actorIds = new Set<string>();
+    for (const edge of sourceGraph.edges) {
+      if (edge.source === eventNodeId && edge.target.startsWith("u:")) {
+        actorIds.add(edge.target);
+      }
+      if (edge.target === eventNodeId && edge.source.startsWith("u:")) {
+        actorIds.add(edge.source);
+      }
+    }
+    return sourceGraph.nodes
+      .filter((n): n is GraphNode => n.kind === "actor" && actorIds.has(n.id))
+      .slice(0, 12);
+  }, [event, graphShard, data]);
 
   if (!events.length || !event) {
     return (
@@ -60,6 +86,37 @@ export function EvidenceCard() {
           <Stat label="Likes" value={event.likeCount ?? 0} />
         </div>
 
+        {participantActors.length > 0 && (
+          <div className="mt-4">
+            <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 mb-2">
+              Participants
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {participantActors.map((actor) => {
+                const active = selectedActorId === actor.id;
+                return (
+                  <button
+                    key={actor.id}
+                    type="button"
+                    onClick={() => setSelectedActor(active ? null : actor.id)}
+                    className={cn(
+                      "border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors duration-150",
+                      active
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border/50 text-muted-foreground hover:border-accent/60 hover:text-accent"
+                    )}
+                  >
+                    {actor.name ?? actor.id.replace(/^u:/, "").slice(0, 8)}
+                    {actor.fakeShare != null && actor.fakeShare > 0.5 && (
+                      <span className="ml-1.5 text-accent">●</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tags.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
             {tags.map((t, index) => (
@@ -74,6 +131,15 @@ export function EvidenceCard() {
             ))}
           </div>
         )}
+
+        <div className="mt-auto pt-5">
+          <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 mb-1.5">
+            Timeline position
+          </span>
+          <div className="h-12">
+            <TimelineMiniMap eventId={event.id} />
+          </div>
+        </div>
       </article>
 
       {/* Sibling list */}
