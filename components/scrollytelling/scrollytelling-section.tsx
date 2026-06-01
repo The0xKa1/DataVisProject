@@ -60,7 +60,7 @@ export function ScrollytellingSection() {
   return (
     <section
       ref={sectionRef}
-      id="work"
+      id="case-study"
       className="relative overflow-clip border-y border-border/30 bg-background"
     >
       <div className="sticky top-0 z-0 h-[100dvh] min-h-[680px] md:min-h-0">

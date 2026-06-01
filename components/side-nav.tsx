@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 const navItems = [
   { id: "hero", label: "首页" },
   { id: "signals", label: "数据" },
-  { id: "work", label: "看板" },
+  { id: "case-study", label: "案例" },
   { id: "principles", label: "原则" },
   { id: "colophon", label: "附录" },
 ]

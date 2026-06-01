@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { NetworkGraph } from "@/components/charts/network-graph";
 import { PropagationSpace } from "@/components/charts/propagation-space";
 import { EvidenceCard } from "@/components/charts/evidence-card";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
@@ -10,8 +9,7 @@ import { cn } from "@/lib/utils";
 import { actorLabelName, compactFmt, fmt, labelName, selectionRuleName } from "@/lib/format";
 import type { BurstWindow, CoordinationSummary, EventGraphIndex, EventItem, GraphEdge, GraphNode, GraphShard, HubActor, TemplateSignal } from "@/lib/charts/types";
 
-const SUMMARY_NODE_THRESHOLD = 360;
-const SUMMARY_EDGE_THRESHOLD = 720;
+
 
 function parseMonthStart(month: string): Date | null {
   const [year, monthNo] = month.split("-").map((part) => Number.parseInt(part, 10));
@@ -226,10 +224,7 @@ export function AnalystConsoleSection() {
     ? data.events.find((event) => event.id === graphIndex.eventId)
     : null;
   const graphForRender = graphShard ?? emptyShard;
-  const useSummaryView =
-    !!graphForRender &&
-    (graphForRender.visibleNodes > SUMMARY_NODE_THRESHOLD ||
-      graphForRender.visibleEdges > SUMMARY_EDGE_THRESHOLD);
+
 
   return (
     <section id="analyst-console" className="relative pl-6 md:pl-28 pr-6 md:pr-12 py-24 md:py-28">
@@ -273,10 +268,8 @@ export function AnalystConsoleSection() {
           aside={graphIndex ? `${compactFmt.format(graphIndex.participantCount)} 名参与者 - ${compactFmt.format(graphIndex.cascadeEdges)} 条级联边` : undefined}
         >
           <div className="relative h-[520px] border border-border/30 bg-background/40">
-            {useSummaryView && graphForRender ? (
+            {graphForRender && (
               <PropagationSpace shard={graphForRender} />
-            ) : (
-              <NetworkGraph shard={graphForRender} />
             )}
             {graphShardStatus === "loading" && (
               <OverlayText>正在计算完整图...</OverlayText>
@@ -287,7 +280,7 @@ export function AnalystConsoleSection() {
           </div>
           {graphForRender && (
             <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground leading-relaxed">
-              {useSummaryView ? "大型事件使用 3D 传播空间渲染完整图，可全屏、旋转、缩放、拖拽节点并点击账号高亮一跳邻域。" : ""}
+              {"大型事件使用 3D 传播空间渲染完整图，可全屏、旋转、缩放、拖拽节点并点击账号高亮一跳邻域。"}
               {selectionRuleName(graphForRender.selectionRule)}。可见 {fmt.format(graphForRender.visibleNodes)} 个节点和{" "}
               {fmt.format(graphForRender.visibleEdges)} 条边；省略 {fmt.format(graphForRender.omittedNodes)} 个节点和{" "}
               {fmt.format(graphForRender.omittedEdges)} 条边。

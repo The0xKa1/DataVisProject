@@ -215,7 +215,7 @@ function SpaceStage({
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x050505, expanded ? 0.012 : 0.018);
+    scene.fog = new THREE.FogExp2(0x050505, expanded ? 0.010 : 0.015);
     const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 320);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -227,11 +227,14 @@ function SpaceStage({
     controls.minDistance = 5;
     controls.maxDistance = expanded ? 92 : 66;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.48));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
     keyLight.position.set(12, 16, 10);
     scene.add(keyLight);
-    const hotLight = new THREE.PointLight(0xe96a2c, 1.4, 48);
+    const fillLight = new THREE.DirectionalLight(0x6f9fd8, 0.25);
+    fillLight.position.set(-10, 4, -8);
+    scene.add(fillLight);
+    const hotLight = new THREE.PointLight(0xe96a2c, 1.8, 52);
     hotLight.position.set(0, 7, 10);
     scene.add(hotLight);
 
@@ -239,8 +242,51 @@ function SpaceStage({
     scene.add(graphGroup);
     addRiskPlanes(graphGroup);
 
-    const actorGeometry = new THREE.SphereGeometry(1, 10, 8);
-    const eventGeometry = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+    // Ambient floating particles
+    const particleCount = 320;
+    const particleGeometry = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleOpacities = new Float32Array(particleCount);
+    for (let i = 0; i < particleCount; i++) {
+      particlePositions[i * 3] = (Math.random() - 0.5) * 100;
+      particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 70;
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+      particleOpacities[i] = 0.12 + Math.random() * 0.28;
+    }
+    particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0xcccccc,
+      size: 0.28,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    particles.renderOrder = -10;
+    scene.add(particles);
+
+    function createGlowTexture() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d")!;
+      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gradient.addColorStop(0, "rgba(255,255,255,1)");
+      gradient.addColorStop(0.25, "rgba(255,255,255,0.45)");
+      gradient.addColorStop(0.6, "rgba(255,255,255,0.1)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 64);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    }
+    const glowTexture = createGlowTexture();
+
+    const actorGeometry = new THREE.SphereGeometry(1, 20, 16);
+    const eventGeometry = new THREE.IcosahedronGeometry(1, 1);
     const nodeMeshes = new Map<string, NodeMesh>();
     const pickTargets: NodeMesh[] = [];
 
@@ -248,20 +294,32 @@ function SpaceStage({
       const material = new THREE.MeshStandardMaterial({
         color: node.color,
         emissive: node.color,
-        emissiveIntensity: node.group === "bot" || node.group === "suspect" ? 0.38 : 0.12,
-        roughness: 0.48,
-        metalness: 0.08,
+        emissiveIntensity: node.group === "bot" || node.group === "suspect" ? 0.72 : 0.28,
+        roughness: 0.32,
+        metalness: 0.18,
         transparent: true,
         opacity: node.major ? (node.kind === "microblog" ? 1 : 0.88) : 0.035,
       });
       const mesh = new THREE.Mesh(node.kind === "microblog" ? eventGeometry : actorGeometry, material) as unknown as NodeMesh;
       mesh.position.copy(node.position);
-      mesh.scale.setScalar(node.radius);
+      const baseScale = node.kind === "microblog" ? node.radius * 1.25 : node.radius;
+      mesh.scale.setScalar(baseScale);
       mesh.userData = {
         node,
-        baseScale: node.radius,
+        baseScale,
         baseColor: node.color.clone(),
       };
+      const glowMaterial = new THREE.SpriteMaterial({
+        map: glowTexture,
+        color: node.color,
+        transparent: true,
+        opacity: node.major ? (node.group === "bot" || node.group === "suspect" ? 0.55 : 0.38) : 0.12,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const glowSprite = new THREE.Sprite(glowMaterial);
+      glowSprite.scale.setScalar(baseScale * (node.major ? 5.5 : 3.8));
+      mesh.add(glowSprite);
       graphGroup.add(mesh);
       nodeMeshes.set(node.id, mesh);
       pickTargets.push(mesh);
@@ -275,7 +333,7 @@ function SpaceStage({
     const edgeMaterial = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.025,
+      opacity: 0.04,
       depthWrite: false,
     });
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
@@ -284,20 +342,24 @@ function SpaceStage({
     const strongLines: StrongLine[] = [];
     for (const edge of prepared.strongEdges) {
       const geometry = new LineGeometry();
-      geometry.setPositions(edgePositionArray(edge));
-      geometry.setColors([
-        edge.displaySourceNode.color.r,
-        edge.displaySourceNode.color.g,
-        edge.displaySourceNode.color.b,
-        edge.displayTargetNode.color.r,
-        edge.displayTargetNode.color.g,
-        edge.displayTargetNode.color.b,
-      ]);
+      const source = edge.displaySourceNode.position;
+      const target = edge.displayTargetNode.position;
+      const distance = source.distanceTo(target);
+      const bend = Math.min(3.5, distance * 0.22) * (edge.sourceNode.id < edge.targetNode.id ? 1 : -1);
+      const control = quadraticBezierControl(source, target, bend);
+      const positions = sampleQuadraticBezier(source, control, target, 8);
+      const colors = sampleQuadraticBezierColors(
+        edge.displaySourceNode.color,
+        edge.displayTargetNode.color,
+        8,
+      );
+      geometry.setPositions(positions);
+      geometry.setColors(colors);
       const material = new LineMaterial({
         linewidth: edge.width,
         vertexColors: true,
         transparent: true,
-        opacity: 0.34,
+        opacity: 0.48,
         depthWrite: false,
         resolution: new THREE.Vector2(1, 1),
       });
@@ -314,7 +376,7 @@ function SpaceStage({
     const pulseMaterial = new THREE.MeshBasicMaterial({
       color: COLORS.ink,
       transparent: true,
-      opacity: 0.64,
+      opacity: 0.82,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: false,
@@ -334,7 +396,7 @@ function SpaceStage({
     const selectedMaterial = new THREE.LineBasicMaterial({
       color: COLORS.hot,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.95,
       depthWrite: false,
     });
     const selectedLines = new THREE.LineSegments(selectedGeometry, selectedMaterial);
@@ -402,7 +464,16 @@ function SpaceStage({
       (edgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       (edgeGeometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
       for (const line of strongLines) {
-        line.userData.geometry.setPositions(edgePositionArray(line.userData.edge));
+        const edge = line.userData.edge;
+        const source = edge.displaySourceNode.position;
+        const target = edge.displayTargetNode.position;
+        const distance = source.distanceTo(target);
+        const bend = Math.min(3.5, distance * 0.22) * (edge.sourceNode.id < edge.targetNode.id ? 1 : -1);
+        const control = quadraticBezierControl(source, target, bend);
+        line.userData.geometry.setPositions(sampleQuadraticBezier(source, control, target, 8));
+        line.userData.geometry.setColors(
+          sampleQuadraticBezierColors(edge.displaySourceNode.color, edge.displayTargetNode.color, 8),
+        );
         line.computeLineDistances();
       }
       refreshSelection(selectedRef.current);
@@ -411,14 +482,21 @@ function SpaceStage({
     function refreshSelection(id: string | null) {
       for (const mesh of nodeMeshes.values()) {
         const material = mesh.material as THREE.MeshStandardMaterial;
+        const glowSprite = mesh.children.find((c) => c instanceof THREE.Sprite) as THREE.Sprite | undefined;
+        const glowMaterial = glowSprite?.material as THREE.SpriteMaterial | undefined;
         const selectedNode = selectedRef.current ? prepared.nodeById.get(selectedRef.current) : null;
         const expandNeighborhood = selectedNode?.kind === "actor";
         const direct = id === mesh.userData.node.id;
         const connected = expandNeighborhood && id ? isNeighbor(prepared, id, mesh.userData.node.id) : false;
         const baseOpacity = mesh.userData.node.major ? (mesh.userData.node.kind === "microblog" ? 1 : 0.88) : 0.035;
         material.opacity = !id || direct || connected ? baseOpacity : 0.16;
-        material.emissiveIntensity = direct ? 1.35 : connected ? 0.52 : mesh.userData.node.risk > 0.55 ? 0.34 : 0.1;
+        material.emissiveIntensity = direct ? 1.6 : connected ? 0.65 : mesh.userData.node.risk > 0.55 ? 0.45 : 0.18;
         mesh.scale.setScalar(mesh.userData.baseScale * (direct ? 1.85 : connected ? 1.22 : 1));
+        if (glowMaterial && glowSprite) {
+          const glowOpacity = direct ? 0.85 : connected ? 0.6 : mesh.userData.node.major ? (mesh.userData.node.risk > 0.55 ? 0.5 : 0.35) : 0.1;
+          glowMaterial.opacity = !id || direct || connected ? glowOpacity : glowOpacity * 0.25;
+          glowSprite.scale.setScalar(mesh.userData.baseScale * (direct ? 8 : connected ? 5.5 : mesh.userData.node.major ? 5 : 3.5));
+        }
       }
       activePulseEdges = resolvePulseEdges(prepared, id);
       pulses.count = activePulseEdges.length;
@@ -454,6 +532,8 @@ function SpaceStage({
       for (const mesh of nodeMeshes.values()) {
         const node = mesh.userData.node;
         const material = mesh.material as THREE.MeshStandardMaterial;
+        const glowSprite = mesh.children.find((c) => c instanceof THREE.Sprite) as THREE.Sprite | undefined;
+        const glowMaterial = glowSprite?.material as THREE.SpriteMaterial | undefined;
         const selectedNode = selectedRef.current ? prepared.nodeById.get(selectedRef.current) : null;
         const expandNeighborhood = selectedNode?.kind === "actor";
         const direct = selectedRef.current === node.id;
@@ -463,6 +543,11 @@ function SpaceStage({
         const baseOpacity = node.major ? (node.kind === "microblog" ? 1 : 0.9) : 0.025 + reveal * 0.78;
         material.opacity = direct || connected ? 0.95 : clamp(baseOpacity, 0.02, node.kind === "microblog" ? 1 : 0.92);
         mesh.visible = node.major || direct || connected || material.opacity > 0.08;
+        if (glowMaterial && glowSprite) {
+          const glowBase = node.major ? (node.risk > 0.55 ? 0.5 : 0.35) : 0.08 + reveal * 0.28;
+          glowMaterial.opacity = direct || connected ? 0.75 : clamp(glowBase, 0.02, 0.65);
+          glowSprite.visible = mesh.visible;
+        }
       }
       edgeMaterial.opacity = 0.018 + zoomReveal * 0.105;
       for (const line of strongLines) {
@@ -488,7 +573,7 @@ function SpaceStage({
         const target = edge.displayTargetNode.position;
         const u = (time * edge.pulseSpeed + edge.phase) % 1;
         pulseDummy.position.lerpVectors(source, target, u);
-        pulseDummy.scale.setScalar(0.055 + Math.min(0.16, edge.width * 0.032));
+        pulseDummy.scale.setScalar(0.08 + Math.min(0.22, edge.width * 0.045));
         pulseDummy.updateMatrix();
         pulses.setMatrixAt(i, pulseDummy.matrix);
         pulseColor.lerpColors(edge.displaySourceNode.color, edge.displayTargetNode.color, u);
@@ -586,6 +671,8 @@ function SpaceStage({
           const mesh = nodeMeshes.get(root.id);
           if (mesh && selectedRef.current !== root.id) mesh.scale.setScalar(mesh.userData.baseScale * pulse);
         }
+        particles.rotation.y = time * 0.00002;
+        particles.rotation.x = Math.sin(time * 0.000008) * 0.08;
         updateVisibility(time);
         renderer.render(scene, camera);
       }
@@ -830,6 +917,49 @@ function edgePositionArray(edge: SpaceEdge) {
   const source = edge.displaySourceNode.position;
   const target = edge.displayTargetNode.position;
   return [source.x, source.y, source.z, target.x, target.y, target.z];
+}
+
+function quadraticBezierControl(
+  source: THREE.Vector3,
+  target: THREE.Vector3,
+  bend: number,
+): THREE.Vector3 {
+  const mid = new THREE.Vector3().addVectors(source, target).multiplyScalar(0.5);
+  const dir = new THREE.Vector3().subVectors(target, source);
+  const perp = new THREE.Vector3(-dir.z, dir.y * 0.3 + 0.1, dir.x).normalize();
+  return mid.add(perp.multiplyScalar(bend));
+}
+
+function sampleQuadraticBezier(
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+  segments: number,
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const o = 1 - t;
+    const x = o * o * p0.x + 2 * o * t * p1.x + t * t * p2.x;
+    const y = o * o * p0.y + 2 * o * t * p1.y + t * t * p2.y;
+    const z = o * o * p0.z + 2 * o * t * p1.z + t * t * p2.z;
+    out.push(x, y, z);
+  }
+  return out;
+}
+
+function sampleQuadraticBezierColors(
+  c0: THREE.Color,
+  c1: THREE.Color,
+  segments: number,
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const o = 1 - t;
+    out.push(o * c0.r + t * c1.r, o * c0.g + t * c1.g, o * c0.b + t * c1.b);
+  }
+  return out;
 }
 
 function edgeKey(edge: Pick<GraphEdge, "source" | "target" | "type">) {
