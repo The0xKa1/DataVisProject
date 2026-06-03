@@ -106,6 +106,8 @@ export type GraphNodeKind = "microblog" | "actor";
 export interface GraphNode {
   id: string;
   kind: GraphNodeKind;
+  semanticRole?: "burst" | "hub" | "template" | "event" | "actor" | "cohort";
+  semanticLabel?: string;
   // Microblog-only fields
   label?: LabelKind;
   sourceType?: string;

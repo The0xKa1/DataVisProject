@@ -7,6 +7,12 @@ import type { DashboardJSON, GraphShard, StoryFocusRegion } from "@/lib/charts/t
 
 export type LabelFilter = "all" | "fake" | "real";
 
+export type AuditFocus =
+  | { type: "event"; eventId: string | null }
+  | { type: "burst"; burstId: string; eventId: string | null }
+  | { type: "hub"; hubId: string; eventId: string | null }
+  | { type: "template"; templateId: string; eventId: string | null };
+
 export interface StoryViewport {
   centerX: number;
   centerY: number;
@@ -23,6 +29,7 @@ interface DashboardState {
   selectedBurstId: string | null;
   selectedHubId: string | null;
   selectedActorId: string | null;
+  auditFocus: AuditFocus;
   graphShard: GraphShard | null;
   graphShardStatus: "idle" | "loading" | "ready" | "error";
   graphShardError: string | null;
@@ -44,6 +51,7 @@ interface DashboardState {
   setSelectedBurst: (id: string | null) => void;
   setSelectedHub: (id: string | null) => void;
   setSelectedActor: (id: string | null) => void;
+  setAuditFocus: (focus: AuditFocus) => void;
   setGraphShardLoading: () => void;
   setGraphShard: (shard: GraphShard | null) => void;
   setGraphShardError: (message: string) => void;
@@ -65,6 +73,7 @@ export const useDashboardStore = create<DashboardState>()(
     selectedBurstId: null,
     selectedHubId: null,
     selectedActorId: null,
+    auditFocus: { type: "event", eventId: null },
     graphShard: null,
     graphShardStatus: "idle",
     graphShardError: null,
@@ -85,6 +94,7 @@ export const useDashboardStore = create<DashboardState>()(
     setSelectedBurst: (selectedBurstId) => set({ selectedBurstId }),
     setSelectedHub: (selectedHubId) => set({ selectedHubId }),
     setSelectedActor: (selectedActorId) => set({ selectedActorId }),
+    setAuditFocus: (auditFocus) => set({ auditFocus }),
     setGraphShardLoading: () =>
       set({ graphShardStatus: "loading", graphShardError: null }),
     setGraphShard: (graphShard) =>
@@ -119,6 +129,7 @@ export const useDashboardStore = create<DashboardState>()(
         dateRange: parseStoryDateRange(focus),
         selectedId: focus.selectedEventId ?? null,
         selectedActorId: focus.selectedActorId ?? null,
+        auditFocus: { type: "event", eventId: focus.selectedEventId ?? null },
         orbitPhase: focus.orbitPhase ?? null,
       });
     },
@@ -135,6 +146,7 @@ export const useDashboardStore = create<DashboardState>()(
         selectedBurstId: null,
         selectedHubId: null,
         selectedActorId: null,
+        auditFocus: { type: "event", eventId: null },
       }),
   }))
 );

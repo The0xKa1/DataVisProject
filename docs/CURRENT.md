@@ -131,6 +131,36 @@ npm run build && npm start
 
 ## Completion Notes
 
+### PropagationSpace real-event exposure tuning (2026-06-03)
+
+- Reduced 3D bloom strength, glow texture opacity, hot point light intensity,
+  pulse opacity, and shader stream brightness so selected real events no longer
+  overexpose the center of the propagation graph.
+- Changed real event nodes from pure white emissive color to a cooler gray-blue
+  and gave real events lower selected scale/glow than fake events.
+- Limited selected-edge overlay to actor selections only; event roots no longer
+  redraw every incident edge as an extra hot highlight layer.
+- Verified in browser with a large real event (`fb548390`, 17,497 participants):
+  center WebGL sample reported 0% white pixels, 0% very-bright pixels, and max
+  luma about 155 instead of a saturated white core.
+
+### Analyst console semantic focus graphs (2026-06-03)
+
+- Added explicit `auditFocus` state so the propagation panel can distinguish
+  single events from burst-window, hub-actor, and repeated-template focus.
+- Added semantic 2D force-directed focus graphs: burst windows render as
+  window -> representative events -> related/shared participant candidates;
+  hub actors render as actor ego graphs; repeated templates render as
+  template -> matched events -> related participant candidates.
+- Clicking graph event nodes or the "open single event" control switches into
+  the precomputed full single-event 3D propagation graph.
+- Updated the MisBot builder so future actor/hub rows keep multiple top event
+  ids, giving actor ego graphs more event context after regeneration.
+- Verified with `npm run typecheck`, `npm run build`, and browser automation at
+  `http://127.0.0.1:3004/#analyst-console`: window, hub, template, and
+  single-event graph states route correctly; aggregate focus states use a 2D
+  SVG force graph, while the selected single-event state uses a live 3D canvas.
+
 ### StoryNetworkCanvas cinematic background pass (2026-06-03)
 
 - Added a two-layer canvas stack for the scrollytelling story network: the

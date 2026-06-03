@@ -315,6 +315,9 @@ def actor_summary(uid: str, stats: dict[str, Any], labels: dict[str, UserLabel])
     total = stats["comments"] + stats["reposts"] + stats["attitudes"]
     label_total = stats["fake"] + stats["real"]
     fake_share = stats["fake"] / label_total if label_total else 0.0
+    top_events = [event_id for _score, event_id in stats.get("top_events", [])]
+    if not top_events and stats.get("top_event_id"):
+        top_events = [stats["top_event_id"]]
     return {
         "user": sha_short(uid),
         "comments": stats["comments"],
@@ -329,7 +332,7 @@ def actor_summary(uid: str, stats: dict[str, Any], labels: dict[str, UserLabel])
         "botLabel": label.bot_label,
         "botScore": round(label.bot_score, 4),
         "labelSource": label.label_source,
-        "topEventIds": [stats["top_event_id"]] if stats.get("top_event_id") else [],
+        "topEventIds": top_events,
         "score": round(
             math.log1p(total) * 4
             + stats.get("events", 0) * 0.6
@@ -338,6 +341,13 @@ def actor_summary(uid: str, stats: dict[str, Any], labels: dict[str, UserLabel])
             4,
         ),
     }
+
+
+def remember_actor_event(stats: dict[str, Any], event_id: str, score: int, limit: int = 8) -> None:
+    top_events = stats.setdefault("top_events", [])
+    top_events.append((score, event_id))
+    top_events.sort(reverse=True)
+    del top_events[limit:]
 
 
 def graph_meta(row: dict[str, Any]) -> dict[str, int]:
@@ -1433,6 +1443,7 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
             "real_events": 0,
             "top_event_id": "",
             "top_event_score": -1,
+            "top_events": [],
         }
     )
     event_graph_index: list[dict[str, Any]] = []
@@ -1567,6 +1578,7 @@ def build_dashboard(args: argparse.Namespace) -> dict[str, Any]:
             for uid in participants:
                 actor_stats[uid]["events"] += 1
                 actor_stats[uid][f"{label}_events"] += 1
+                remember_actor_event(actor_stats[uid], event_id, score)
                 if score > actor_stats[uid]["top_event_score"]:
                     actor_stats[uid]["top_event_score"] = score
                     actor_stats[uid]["top_event_id"] = event_id

@@ -2,12 +2,19 @@
 
 import { useEffect, useMemo } from "react";
 import { PropagationSpace } from "@/components/charts/propagation-space";
+import { SemanticFocusGraph } from "@/components/charts/semantic-focus-graph";
 import { EvidenceCard } from "@/components/charts/evidence-card";
-import { useDashboardStore } from "@/lib/store/dashboard-store";
+import { useDashboardStore, type AuditFocus } from "@/lib/store/dashboard-store";
 import { useSelectedBurst, useSelectedGraphIndex } from "@/lib/store/selectors";
 import { cn } from "@/lib/utils";
 import { actorLabelName, compactFmt, fmt, labelName, selectionRuleName } from "@/lib/format";
 import type { BurstWindow, CoordinationSummary, EventGraphIndex, EventItem, GraphEdge, GraphNode, GraphShard, HubActor, TemplateSignal } from "@/lib/charts/types";
+import {
+  buildBurstFocusGraph,
+  buildHubFocusGraph,
+  buildTemplateFocusGraph,
+  rankEventIds,
+} from "@/lib/charts/audit-focus-graph";
 
 
 
@@ -23,24 +30,12 @@ function parseMonthEnd(month: string): Date | null {
   return new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59);
 }
 
-function pickGraphEventId(eventIds: string[] | undefined): string | null {
-  return eventIds?.[0] ?? null;
+function pickGraphEventId(eventIds: string[] | undefined, coordination?: CoordinationSummary): string | null {
+  return rankEventIds(eventIds, coordination?.eventGraphIndex ?? [], 1)[0] ?? eventIds?.[0] ?? null;
 }
 
 function pickBurstEventId(burst: BurstWindow, coordination?: CoordinationSummary): string | null {
-  const indexById = new Map((coordination?.eventGraphIndex ?? []).map((entry) => [entry.eventId, entry]));
-  const ranked = [...(burst.eventIds ?? [])].sort((a, b) => {
-    const aIndex = indexById.get(a);
-    const bIndex = indexById.get(b);
-    const score = (entry?: EventGraphIndex) =>
-      (entry?.label === "fake" ? 100000 : 0) +
-      (entry?.fullGraph ? 50000 : 0) +
-      (entry?.participantCount ?? 0) * 4 +
-      (entry?.botShare ?? 0) * 1000 +
-      (entry?.score ?? 0) / 100;
-    return score(bIndex) - score(aIndex);
-  });
-  return pickGraphEventId(ranked);
+  return pickGraphEventId(burst.eventIds, coordination);
 }
 
 function buildAutoGraphShard(graphIndex: EventGraphIndex, event: EventItem | null): GraphShard {
@@ -149,6 +144,7 @@ export function AnalystConsoleSection() {
   const data = useDashboardStore((s) => s.data);
   const selectedId = useDashboardStore((s) => s.selectedId);
   const selectedBurstId = useDashboardStore((s) => s.selectedBurstId);
+  const auditFocus = useDashboardStore((s) => s.auditFocus);
   const graphShard = useDashboardStore((s) => s.graphShard);
   const graphShardStatus = useDashboardStore((s) => s.graphShardStatus);
   const graphShardError = useDashboardStore((s) => s.graphShardError);
@@ -158,6 +154,7 @@ export function AnalystConsoleSection() {
   const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
   const setDateRange = useDashboardStore((s) => s.setDateRange);
   const setSearch = useDashboardStore((s) => s.setSearch);
+  const setAuditFocus = useDashboardStore((s) => s.setAuditFocus);
   const setGraphShard = useDashboardStore((s) => s.setGraphShard);
   const setGraphShardLoading = useDashboardStore((s) => s.setGraphShardLoading);
   const setGraphShardError = useDashboardStore((s) => s.setGraphShardError);
@@ -171,8 +168,12 @@ export function AnalystConsoleSection() {
     const currentCoordination = data?.coordination;
     if (!firstBurst || !currentCoordination) return;
     if (!selectedBurstId) setSelectedBurst(firstBurst.id);
-    if (!selectedId) setSelected(pickBurstEventId(firstBurst, currentCoordination));
-  }, [data, selectedBurstId, selectedId, setSelectedBurst, setSelected]);
+    if (!selectedId) {
+      const eventId = pickBurstEventId(firstBurst, currentCoordination);
+      setSelected(eventId);
+      setAuditFocus({ type: "burst", burstId: firstBurst.id, eventId });
+    }
+  }, [data, selectedBurstId, selectedId, setAuditFocus, setSelectedBurst, setSelected]);
 
   const templateSignals = useMemo<TemplateSignal[]>(() => {
     if (coordination?.templateSignals?.length) return coordination.templateSignals;
@@ -188,6 +189,10 @@ export function AnalystConsoleSection() {
   }, [coordination?.templateSignals, data?.phrases]);
 
   useEffect(() => {
+    if (auditFocus.type !== "event") {
+      setGraphShard(null);
+      return;
+    }
     if (!graphIndex) {
       setGraphShard(null);
       return;
@@ -208,13 +213,27 @@ export function AnalystConsoleSection() {
         setGraphShardError(error instanceof Error ? error.message : "完整图加载失败");
       });
     return () => controller.abort();
-  }, [graphIndex, setGraphShard, setGraphShardError, setGraphShardLoading]);
+  }, [auditFocus.type, graphIndex, setGraphShard, setGraphShardError, setGraphShardLoading]);
 
   const emptyShard = useMemo<GraphShard | null>(() => {
     if (!graphIndex) return null;
     const event = data?.events.find((item) => item.id === graphIndex.eventId) ?? null;
     return buildAutoGraphShard(graphIndex, event);
   }, [data?.events, graphIndex]);
+
+  const semanticShard = useMemo<GraphShard | null>(() => {
+    if (!data || !coordination || auditFocus.type === "event") return null;
+    if (auditFocus.type === "burst") {
+      const burst = coordination.burstWindows.find((item) => item.id === auditFocus.burstId);
+      return burst ? buildBurstFocusGraph(data, burst) : null;
+    }
+    if (auditFocus.type === "hub") {
+      const hub = coordination.hubActors.find((item) => item.user === auditFocus.hubId);
+      return hub ? buildHubFocusGraph(data, hub) : null;
+    }
+    const template = templateSignals.find((item) => item.id === auditFocus.templateId);
+    return template ? buildTemplateFocusGraph(data, template) : null;
+  }, [auditFocus, coordination, data, templateSignals]);
 
   if (!data || !coordination) {
     return null;
@@ -223,7 +242,16 @@ export function AnalystConsoleSection() {
   const selectedEvent = graphIndex
     ? data.events.find((event) => event.id === graphIndex.eventId)
     : null;
-  const graphForRender = graphShard ?? emptyShard;
+  const selectedEventOrNull = selectedEvent ?? null;
+  const graphForRender = auditFocus.type === "event"
+    ? graphShard ?? emptyShard
+    : semanticShard ?? emptyShard;
+  const graphTitle = graphPanelTitle(auditFocus, coordination, templateSignals, selectedEventOrNull);
+  const graphAside = auditFocus.type === "event" && graphIndex
+    ? `${compactFmt.format(graphIndex.participantCount)} 名参与者 - ${compactFmt.format(graphIndex.cascadeEdges)} 条级联边`
+    : graphForRender
+      ? `${compactFmt.format(graphForRender.visibleNodes)} 节点 - ${compactFmt.format(graphForRender.visibleEdges)} 条语义边`
+      : undefined;
 
 
   return (
@@ -252,35 +280,54 @@ export function AnalystConsoleSection() {
             onSelect={(burst) => {
               const start = parseMonthStart(burst.startMonth);
               const end = parseMonthEnd(burst.endMonth);
+              const eventId = pickBurstEventId(burst, coordination);
               setSelectedBurst(burst.id);
               setSelectedActor(null);
               if (start && end) setDateRange([start, end]);
               setSearch("");
-              setSelected(pickBurstEventId(burst, coordination));
+              setSelected(eventId);
+              setAuditFocus({ type: "burst", burstId: burst.id, eventId });
             }}
           />
         </Panel>
 
         <Panel
           className="xl:col-span-6 min-h-[620px]"
-          eyebrow="传播图"
-          title={selectedEvent ? `${labelName(selectedEvent.label)} ${selectedEvent.shortId}` : "图加载中"}
-          aside={graphIndex ? `${compactFmt.format(graphIndex.participantCount)} 名参与者 - ${compactFmt.format(graphIndex.cascadeEdges)} 条级联边` : undefined}
+          eyebrow={auditFocus.type === "event" ? "传播图" : "聚合图"}
+          title={graphTitle}
+          aside={graphAside}
         >
+          <FocusBridge
+            focus={auditFocus}
+            data={data}
+            coordination={coordination}
+            templates={templateSignals}
+            onOpenEvent={(eventId) => {
+              setSelectedActor(null);
+              setSelected(eventId);
+              setAuditFocus({ type: "event", eventId });
+            }}
+          />
           <div className="relative h-[520px] border border-border/30 bg-background/40">
             {graphForRender && (
-              <PropagationSpace shard={graphForRender} />
+              auditFocus.type === "event" ? (
+                <PropagationSpace shard={graphForRender} />
+              ) : (
+                <SemanticFocusGraph shard={graphForRender} />
+              )
             )}
-            {graphShardStatus === "loading" && (
+            {auditFocus.type === "event" && graphShardStatus === "loading" && (
               <OverlayText>正在计算完整图...</OverlayText>
             )}
-            {graphShardStatus === "error" && (
+            {auditFocus.type === "event" && graphShardStatus === "error" && (
               <OverlayText>{graphShardError ?? "完整图加载失败"}</OverlayText>
             )}
           </div>
           {graphForRender && (
             <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground leading-relaxed">
-              {"大型事件使用 3D 传播空间渲染完整图，可全屏、旋转、缩放、拖拽节点并点击账号高亮一跳邻域。"}
+              {auditFocus.type === "event"
+                ? "单事件使用 3D 传播空间渲染完整图，可全屏、旋转、缩放、拖拽节点并点击账号高亮一跳邻域。"
+                : "当前为 2D 力导向聚合图：先解释所选窗口、放大者或话术模板，再点击图中的微博事件节点进入单事件 3D 传播图。"}
               {selectionRuleName(graphForRender.selectionRule)}。可见 {fmt.format(graphForRender.visibleNodes)} 个节点和{" "}
               {fmt.format(graphForRender.visibleEdges)} 条边；省略 {fmt.format(graphForRender.omittedNodes)} 个节点和{" "}
               {fmt.format(graphForRender.omittedEdges)} 条边。
@@ -293,9 +340,11 @@ export function AnalystConsoleSection() {
             <HubList
               hubs={coordination.hubActors}
               onSelect={(hub) => {
-                setSelectedActor(null);
+                const eventId = pickGraphEventId(hub.topEventIds, coordination);
                 setSelectedHub(hub.user);
-                setSelected(pickGraphEventId(hub.topEventIds));
+                setSelectedActor(`u:${hub.user}`);
+                setSelected(eventId);
+                setAuditFocus({ type: "hub", hubId: hub.user, eventId });
               }}
             />
           </Panel>
@@ -305,8 +354,9 @@ export function AnalystConsoleSection() {
               onSelect={(template) => {
                 setSelectedActor(null);
                 setSearch(template.text);
-                const selectedTemplateEvent = pickGraphEventId(template.eventIds);
+                const selectedTemplateEvent = pickGraphEventId(template.eventIds, coordination);
                 if (selectedTemplateEvent) setSelected(selectedTemplateEvent);
+                setAuditFocus({ type: "template", templateId: template.id, eventId: selectedTemplateEvent });
               }}
             />
           </Panel>
@@ -318,6 +368,105 @@ export function AnalystConsoleSection() {
       </div>
     </section>
   );
+}
+
+function graphPanelTitle(
+  focus: AuditFocus,
+  coordination: CoordinationSummary,
+  templates: TemplateSignal[],
+  selectedEvent: EventItem | null,
+) {
+  if (focus.type === "burst") {
+    const burst = coordination.burstWindows.find((item) => item.id === focus.burstId);
+    return burst ? `异常窗口 ${burst.peakMonth}` : "异常窗口";
+  }
+  if (focus.type === "hub") return `放大者 ${focus.hubId}`;
+  if (focus.type === "template") {
+    const template = templates.find((item) => item.id === focus.templateId);
+    const text = template?.text?.trim();
+    return text ? `话术 ${text.slice(0, 10)}` : "话术模板";
+  }
+  return selectedEvent ? `${labelName(selectedEvent.label)} ${selectedEvent.shortId}` : "图加载中";
+}
+
+function FocusBridge({
+  focus,
+  data,
+  coordination,
+  templates,
+  onOpenEvent,
+}: {
+  focus: AuditFocus;
+  data: { events: EventItem[] };
+  coordination: CoordinationSummary;
+  templates: TemplateSignal[];
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const meta = focusMeta(focus, data.events, coordination, templates);
+  if (!meta) return null;
+
+  return (
+    <div className="mb-3 border border-border/35 bg-background/45 px-3 py-2 font-mono text-[10px] uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <span>
+          <span className="text-accent">{meta.label}</span>
+          {" · "}
+          {meta.detail}
+        </span>
+        {meta.eventId && focus.type !== "event" && (
+          <button
+            type="button"
+            onClick={() => onOpenEvent(meta.eventId!)}
+            className="w-fit border border-accent/50 px-2 py-1 text-foreground transition hover:bg-accent hover:text-background"
+          >
+            打开单事件 3D 图
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function focusMeta(
+  focus: AuditFocus,
+  events: EventItem[],
+  coordination: CoordinationSummary,
+  templates: TemplateSignal[],
+): { label: string; detail: string; eventId: string | null } | null {
+  if (focus.type === "burst") {
+    const burst = coordination.burstWindows.find((item) => item.id === focus.burstId);
+    if (!burst) return null;
+    const event = focus.eventId ? events.find((item) => item.id === focus.eventId) : null;
+    return {
+      label: "窗口聚合图",
+      detail: `${burst.startMonth} -> ${burst.endMonth}，展示代表事件与共享参与者候选${event ? `；代表事件 ${event.shortId}` : ""}`,
+      eventId: focus.eventId,
+    };
+  }
+  if (focus.type === "hub") {
+    const hub = coordination.hubActors.find((item) => item.user === focus.hubId);
+    if (!hub) return null;
+    return {
+      label: "放大者 ego 聚合图",
+      detail: `${hub.eventCount} 个参与事件，${(hub.fakeShare * 100).toFixed(1)}% 虚假参与，中心节点为该候选账号`,
+      eventId: focus.eventId,
+    };
+  }
+  if (focus.type === "template") {
+    const template = templates.find((item) => item.id === focus.templateId);
+    if (!template) return null;
+    return {
+      label: "话术聚合图",
+      detail: `${fmt.format(template.count)} 次命中，${fmt.format(template.users)} 名相关用户，中心节点为重复文本`,
+      eventId: focus.eventId,
+    };
+  }
+  const event = focus.eventId ? events.find((item) => item.id === focus.eventId) : null;
+  return {
+    label: "单事件 3D 传播图",
+    detail: event ? `${labelName(event.label)} ${event.shortId}，展示该事件的原始传播节点和边` : "展示被选中事件的原始传播节点和边",
+    eventId: focus.eventId,
+  };
 }
 
 function Panel({

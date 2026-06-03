@@ -13,6 +13,7 @@ export function EvidenceCard() {
   const event = useSelectedEvent(events);
   const setSearch = useDashboardStore((s) => s.setSearch);
   const setSelected = useDashboardStore((s) => s.setSelected);
+  const setAuditFocus = useDashboardStore((s) => s.setAuditFocus);
   const graphShard = useDashboardStore((s) => s.graphShard);
   const selectedActorId = useDashboardStore((s) => s.selectedActorId);
   const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
@@ -149,7 +150,10 @@ export function EvidenceCard() {
             <button
               key={ev.id}
               type="button"
-              onClick={() => setSelected(ev.id)}
+              onClick={() => {
+                setSelected(ev.id);
+                setAuditFocus({ type: "event", eventId: ev.id });
+              }}
               className={cn(
                 "w-full text-left block border-b border-border/20 px-3 py-2.5 transition-colors duration-150",
                 active ? "bg-accent/10" : "hover:bg-card/80"

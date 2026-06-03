@@ -213,6 +213,7 @@ function SpaceStage({
   const selectedRef = useRef<string | null>(selectedNodeId);
   const setSelected = useDashboardStore((s) => s.setSelected);
   const setSelectedActor = useDashboardStore((s) => s.setSelectedActor);
+  const setAuditFocus = useDashboardStore((s) => s.setAuditFocus);
   const { show, hide } = useTooltip();
 
   useEffect(() => {
@@ -259,7 +260,7 @@ function SpaceStage({
     const fillLight = new THREE.DirectionalLight(0x6f9fd8, 0.25);
     fillLight.position.set(-10, 4, -8);
     scene.add(fillLight);
-    const hotLight = new THREE.PointLight(0xe96a2c, 1.8, 52);
+    const hotLight = new THREE.PointLight(0xe96a2c, 1.25, 46);
     hotLight.position.set(0, 7, 10);
     scene.add(hotLight);
 
@@ -268,9 +269,9 @@ function SpaceStage({
     const renderPass = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(1, 1),
-      expanded ? 0.54 : 0.44,
-      0.38,
-      0.18,
+      expanded ? 0.4 : 0.32,
+      0.3,
+      0.32,
     );
     composer.addPass(renderPass);
     composer.addPass(bloomPass);
@@ -311,9 +312,9 @@ function SpaceStage({
       canvas.height = 64;
       const ctx = canvas.getContext("2d")!;
       const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-      gradient.addColorStop(0, "rgba(255,255,255,1)");
-      gradient.addColorStop(0.25, "rgba(255,255,255,0.45)");
-      gradient.addColorStop(0.6, "rgba(255,255,255,0.1)");
+      gradient.addColorStop(0, "rgba(255,255,255,0.72)");
+      gradient.addColorStop(0.25, "rgba(255,255,255,0.28)");
+      gradient.addColorStop(0.6, "rgba(255,255,255,0.075)");
       gradient.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 64, 64);
@@ -332,15 +333,15 @@ function SpaceStage({
       const material = new THREE.MeshStandardMaterial({
         color: node.color,
         emissive: node.color,
-        emissiveIntensity: node.group === "bot" || node.group === "suspect" ? 0.72 : 0.28,
+        emissiveIntensity: idleEmissiveIntensity(node),
         roughness: 0.32,
         metalness: 0.18,
         transparent: true,
-        opacity: node.major ? (node.kind === "microblog" ? 1 : 0.88) : 0.035,
+        opacity: idleNodeOpacity(node),
       });
       const mesh = new THREE.Mesh(node.kind === "microblog" ? eventGeometry : actorGeometry, material) as unknown as NodeMesh;
       mesh.position.copy(node.position);
-      const baseScale = node.kind === "microblog" ? node.radius * 1.25 : node.radius;
+      const baseScale = node.kind === "microblog" ? node.radius * (isRealEventNode(node) ? 0.82 : 1.08) : node.radius;
       mesh.scale.setScalar(baseScale);
       mesh.userData = {
         node,
@@ -351,12 +352,12 @@ function SpaceStage({
         map: glowTexture,
         color: node.color,
         transparent: true,
-        opacity: node.major ? (node.group === "bot" || node.group === "suspect" ? 0.55 : 0.38) : 0.12,
+        opacity: idleGlowOpacity(node, 0),
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
       const glowSprite = new THREE.Sprite(glowMaterial);
-      glowSprite.scale.setScalar(baseScale * (node.major ? 5.5 : 3.8));
+      glowSprite.scale.setScalar(baseScale * idleGlowScale(node));
       mesh.add(glowSprite);
       graphGroup.add(mesh);
       nodeMeshes.set(node.id, mesh);
@@ -376,9 +377,9 @@ function SpaceStage({
     edgeGeometry.setAttribute("edgeAlpha", new THREE.BufferAttribute(edgeAlphas, 1).setUsage(THREE.DynamicDrawUsage));
     edgeGeometry.setAttribute("edgeProgress", new THREE.BufferAttribute(edgeProgresses, 1).setUsage(THREE.DynamicDrawUsage));
     edgeGeometry.setAttribute("edgePhase", new THREE.BufferAttribute(edgePhases, 1).setUsage(THREE.DynamicDrawUsage));
-    const edgeMaterial = createEdgeShaderMaterial(0.04, 0.34, 0.32, {
+    const edgeMaterial = createEdgeShaderMaterial(0.03, 0.24, 0.3, {
       baseOpacityScale: 1,
-      streamWidth: 0.18,
+      streamWidth: 0.14,
     });
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     graphGroup.add(edgeLines);
@@ -397,11 +398,11 @@ function SpaceStage({
     strongEdgeGeometry.setAttribute("edgeAlpha", new THREE.BufferAttribute(strongEdgeAlphas, 1).setUsage(THREE.DynamicDrawUsage));
     strongEdgeGeometry.setAttribute("edgeProgress", new THREE.BufferAttribute(strongEdgeProgresses, 1).setUsage(THREE.DynamicDrawUsage));
     strongEdgeGeometry.setAttribute("edgePhase", new THREE.BufferAttribute(strongEdgePhases, 1).setUsage(THREE.DynamicDrawUsage));
-    const strongEdgeMaterial = createEdgeShaderMaterial(0.38, 0.95, 0.52, {
-      baseOpacityScale: 0.22,
+    const strongEdgeMaterial = createEdgeShaderMaterial(0.24, 0.62, 0.48, {
+      baseOpacityScale: 0.18,
       dashDuty: 0.34,
       dashFrequency: 14,
-      streamWidth: 0.075,
+      streamWidth: 0.052,
     });
     const strongEdgeLines = new THREE.LineSegments(strongEdgeGeometry, strongEdgeMaterial);
     strongEdgeLines.renderOrder = 5;
@@ -414,7 +415,7 @@ function SpaceStage({
     const pulseMaterial = new THREE.MeshBasicMaterial({
       color: COLORS.ink,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.56,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: false,
@@ -434,7 +435,7 @@ function SpaceStage({
     const selectedMaterial = new THREE.LineBasicMaterial({
       color: COLORS.hot,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.58,
       depthWrite: false,
     });
     const selectedLines = new THREE.LineSegments(selectedGeometry, selectedMaterial);
@@ -493,11 +494,11 @@ function SpaceStage({
           edgeAlphas,
           edgeProgresses,
           edgePhases,
-          i * weakEdgeStride,
-          i * weakEdgeVertexCount,
-          WEAK_EDGE_CURVE_SEGMENTS,
-          1,
-        );
+              i * weakEdgeStride,
+              i * weakEdgeVertexCount,
+              WEAK_EDGE_CURVE_SEGMENTS,
+              1,
+            );
       }
       if (weakUpdates.length) {
         (edgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
@@ -520,11 +521,11 @@ function SpaceStage({
           strongEdgeAlphas,
           strongEdgeProgresses,
           strongEdgePhases,
-          i * strongEdgeStride,
-          i * strongEdgeVertexCount,
-          STRONG_EDGE_CURVE_SEGMENTS,
-          1,
-        );
+              i * strongEdgeStride,
+              i * strongEdgeVertexCount,
+              STRONG_EDGE_CURVE_SEGMENTS,
+              1,
+            );
       }
       if (strongUpdates.length) {
         (strongEdgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
@@ -545,26 +546,29 @@ function SpaceStage({
         const expandNeighborhood = selectedNode?.kind === "actor";
         const direct = id === mesh.userData.node.id;
         const connected = expandNeighborhood && id ? isNeighbor(prepared, id, mesh.userData.node.id) : false;
-        const baseOpacity = mesh.userData.node.major ? (mesh.userData.node.kind === "microblog" ? 1 : 0.88) : 0.035;
+        const baseOpacity = idleNodeOpacity(mesh.userData.node);
         material.opacity = !id || direct || connected ? baseOpacity : 0.16;
-        material.emissiveIntensity = direct ? 1.6 : connected ? 0.65 : mesh.userData.node.risk > 0.55 ? 0.45 : 0.18;
-        mesh.scale.setScalar(mesh.userData.baseScale * (direct ? 1.85 : connected ? 1.22 : 1));
+        material.emissiveIntensity = selectionEmissiveIntensity(mesh.userData.node, direct, connected);
+        mesh.scale.setScalar(mesh.userData.baseScale * selectionScale(mesh.userData.node, direct, connected));
         if (glowMaterial && glowSprite) {
-          const glowOpacity = direct ? 0.85 : connected ? 0.6 : mesh.userData.node.major ? (mesh.userData.node.risk > 0.55 ? 0.5 : 0.35) : 0.1;
+          const glowOpacity = selectionGlowOpacity(mesh.userData.node, direct, connected);
           glowMaterial.opacity = !id || direct || connected ? glowOpacity : glowOpacity * 0.25;
-          glowSprite.scale.setScalar(mesh.userData.baseScale * (direct ? 8 : connected ? 5.5 : mesh.userData.node.major ? 5 : 3.5));
+          glowSprite.scale.setScalar(mesh.userData.baseScale * selectionGlowScale(mesh.userData.node, direct, connected));
         }
       }
       activePulseEdges = resolvePulseEdges(prepared, id);
       pulses.count = activePulseEdges.length;
 
       selectedGeometry.dispose();
-      if (!id) {
+      const selectedNode = id ? prepared.nodeById.get(id) : null;
+      if (!id || selectedNode?.kind !== "actor") {
         selectedGeometry = new THREE.BufferGeometry();
         selectedLines.geometry = selectedGeometry;
         return;
       }
-      const selectedEdges = prepared.edgesByNode.get(id) ?? [];
+      const selectedEdges = (prepared.edgesByNode.get(id) ?? [])
+        .sort((a, b) => b.strength - a.strength)
+        .slice(0, 180);
       const selectedPositions = new Float32Array(selectedEdges.length * WEAK_EDGE_CURVE_SEGMENTS * 6);
       for (let i = 0; i < selectedEdges.length; i += 1) {
         const edge = selectedEdges[i];
@@ -589,12 +593,15 @@ function SpaceStage({
         const connected = expandNeighborhood && selectedRef.current ? isNeighbor(prepared, selectedRef.current, node.id) : false;
         const localReveal = smoothstep(24, 8, node.position.distanceTo(controls.target));
         const reveal = clamp(zoomReveal * (0.35 + localReveal * 0.9), 0, 1);
-        const baseOpacity = node.major ? (node.kind === "microblog" ? 1 : 0.9) : 0.025 + reveal * 0.78;
-        material.opacity = direct || connected ? 0.95 : clamp(baseOpacity, 0.02, node.kind === "microblog" ? 1 : 0.92);
+        const baseOpacity = node.major
+          ? idleNodeOpacity(node)
+          : 0.025 + reveal * (isRealEventNode(node) ? 0.42 : 0.74);
+        const activeOpacity = isRealEventNode(node) ? 0.7 : 0.9;
+        material.opacity = direct || connected ? activeOpacity : clamp(baseOpacity, 0.02, isRealEventNode(node) ? 0.76 : node.kind === "microblog" ? 0.92 : 0.88);
         mesh.visible = node.major || direct || connected || material.opacity > 0.08;
         if (glowMaterial && glowSprite) {
-          const glowBase = node.major ? (node.risk > 0.55 ? 0.5 : 0.35) : 0.08 + reveal * 0.28;
-          glowMaterial.opacity = direct || connected ? 0.75 : clamp(glowBase, 0.02, 0.65);
+          const glowBase = idleGlowOpacity(node, reveal);
+          glowMaterial.opacity = direct || connected ? selectionGlowOpacity(node, direct, connected) : clamp(glowBase, 0.02, isRealEventNode(node) ? 0.24 : 0.54);
           glowSprite.visible = mesh.visible;
         }
       }
@@ -614,7 +621,7 @@ function SpaceStage({
           strongEdgeAlphas,
           i * STRONG_EDGE_CURVE_SEGMENTS * 2,
           STRONG_EDGE_CURVE_SEGMENTS,
-          active ? 0.76 + zoomReveal * 0.18 : 0.18,
+          edgeExposureScale(edge) * (active ? 0.54 + zoomReveal * 0.12 : 0.12),
         );
       }
       (strongEdgeGeometry.attributes.edgeAlpha as THREE.BufferAttribute).needsUpdate = true;
@@ -650,10 +657,12 @@ function SpaceStage({
       if (!mesh) return;
       const node = mesh.userData.node;
       controls.target.copy(node.position);
-      if (node.kind === "microblog") {
+      if (node.kind === "microblog" && node.id.startsWith("m:")) {
+        const eventId = node.id.replace(/^m:/, "");
         setSelectedActor(null);
-        setSelected(node.id.replace(/^m:/, ""));
-      } else {
+        setSelected(eventId);
+        setAuditFocus({ type: "event", eventId });
+      } else if (node.kind === "actor") {
         setSelectedActor(node.id);
       }
     }
@@ -790,7 +799,7 @@ function SpaceStage({
       renderer.domElement.remove();
       runtimeRef.current = null;
     };
-  }, [expanded, hide, prepared, setSelected, setSelectedActor, show]);
+  }, [expanded, hide, prepared, setAuditFocus, setSelected, setSelectedActor, show]);
 
   return <div ref={containerRef} className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(233,106,44,0.12),rgba(7,7,7,0.12)_34%,rgba(5,5,5,0.96)_78%)]" />;
 }
@@ -812,7 +821,12 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
     adjacency.get(edge.target)?.add(edge.source);
   }
 
-  const rootIds = shard.graph.nodes
+  const focusIds = shard.graph.nodes
+    .filter((node) => node.semanticRole === "burst" || node.semanticRole === "hub" || node.semanticRole === "template")
+    .map((node) => node.id);
+  const rootIds = focusIds.length
+    ? focusIds
+    : shard.graph.nodes
     .filter((node) => node.kind === "microblog")
     .map((node) => node.id);
   const distance = graphDistances(rootIds, adjacency);
@@ -828,6 +842,8 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
     .sort((a, b) => a - b);
   const majorThreshold = quantile(actorInfluences, 0.92);
   const rootsTotal = Math.max(1, rootIds.length);
+  const hasSemanticFocus = focusIds.length > 0;
+  let focusIndex = 0;
   let eventIndex = 0;
   let actorIndex = 0;
   const actorTotal = Math.max(1, shard.graph.nodes.filter((node) => node.kind === "actor").length);
@@ -845,10 +861,17 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
       const nodeDistance = distance.get(node.id) ?? 5;
       let position: THREE.Vector3;
 
-      if (node.kind === "microblog") {
+      if (node.semanticRole === "burst" || node.semanticRole === "hub" || node.semanticRole === "template") {
+        const a = (focusIndex / Math.max(1, focusIds.length)) * TAU;
+        const r = focusIds.length <= 1 ? 0 : 1.4;
+        position = new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r);
+        focusIndex += 1;
+      } else if (node.kind === "microblog") {
         const a = (eventIndex / rootsTotal) * TAU;
-        const r = rootIds.length <= 1 ? 0 : 2.2 + eventIndex * 0.22;
-        position = new THREE.Vector3(Math.cos(a) * r, Math.sin(eventIndex * 1.7) * 0.35, Math.sin(a) * r);
+        const r = hasSemanticFocus
+          ? 5.4 + (eventIndex % 4) * 1.15
+          : rootIds.length <= 1 ? 0 : 2.2 + eventIndex * 0.22;
+        position = new THREE.Vector3(Math.cos(a) * r, Math.sin(eventIndex * 1.7) * 0.45, Math.sin(a) * r);
         eventIndex += 1;
       } else {
         const i = actorIndex;
@@ -858,7 +881,7 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
           ? i * GOLDEN_ANGLE + risk * 1.55
           : parentAngle + (hashUnit(`${node.id}|child-angle`) - 0.5) * 0.82 + risk * 0.42;
         const layerY = (risk - 0.5) * 19 + (hashUnit(node.id) - 0.5) * 4.8;
-        const shell = 13.5 + (1 - risk) * 12.5 + Math.min(5, nodeDistance) * 1.8;
+        const shell = (hasSemanticFocus ? 11.5 : 13.5) + (1 - risk) * 12.5 + Math.min(5, nodeDistance) * 1.8;
         const flat = Math.sqrt(Math.max(2, shell * shell - layerY * layerY));
         const lane = ((i % 13) - 6) * 0.42;
         position = new THREE.Vector3(Math.cos(theta) * flat, layerY, Math.sin(theta) * flat + lane);
@@ -945,7 +968,7 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
     };
   });
 
-  const roots = nodes.filter((node) => node.kind === "microblog");
+  const roots = nodes.filter((node) => focusIds.includes(node.id) || (!focusIds.length && node.kind === "microblog"));
   const topActors = nodes
     .filter((node) => node.kind === "actor")
     .sort((a, b) => b.risk * b.degree - a.risk * a.degree)
@@ -1072,13 +1095,14 @@ function writeEdgeCurveSegments(
   writeEdgeCurvePositions(edge, positions, offset, segments);
   let p = offset;
   let a = alphaOffset;
+  const exposureScale = edgeExposureScale(edge) * alphaScale;
   for (let i = 0; i < segments; i += 1) {
     const t0 = i / segments;
     const t1 = (i + 1) / segments;
     p = writeGradientColor(edge.displaySourceNode.color, edge.displayTargetNode.color, t0, colors, p);
     p = writeGradientColor(edge.displaySourceNode.color, edge.displayTargetNode.color, t1, colors, p);
-    a = writeEdgeDynamicValue(t0, edge.phase, alphas, progresses, phases, a, alphaScale);
-    a = writeEdgeDynamicValue(t1, edge.phase, alphas, progresses, phases, a, alphaScale);
+    a = writeEdgeDynamicValue(t0, edge.phase, alphas, progresses, phases, a, exposureScale * edgeCenterAlphaScale(edge, t0));
+    a = writeEdgeDynamicValue(t1, edge.phase, alphas, progresses, phases, a, exposureScale * edgeCenterAlphaScale(edge, t1));
   }
 }
 
@@ -1259,7 +1283,7 @@ function createEdgeShaderMaterial(
         float traceAlpha = stream * layerOpacity * motionStrength * (0.22 + vAlpha * 0.58);
         float alpha = clamp(baseAlpha + traceAlpha, 0.0, 1.0);
         if (alpha <= 0.002) discard;
-        vec3 color = vColor * (0.82 + baseOpacityScale * 0.18 + stream * (1.15 + motionStrength * 1.45));
+            vec3 color = vColor * (0.78 + baseOpacityScale * 0.16 + stream * (0.82 + motionStrength * 1.05));
         gl_FragColor = vec4(color, alpha);
       }
     `,
@@ -1397,6 +1421,98 @@ function pulseEdgesForNode(space: PreparedSpace, nodeId: string) {
     .sort((a, b) => b.strength - a.strength);
 }
 
+function isRealEventNode(node: GraphNode) {
+  return node.kind === "microblog" && node.label !== "fake";
+}
+
+function idleNodeOpacity(node: SpaceNode) {
+  if (!node.major) return 0.035;
+  if (isRealEventNode(node)) return 0.64;
+  if (node.kind === "microblog") return 0.88;
+  return 0.86;
+}
+
+function idleEmissiveIntensity(node: SpaceNode) {
+  if (isRealEventNode(node)) return 0.06;
+  if (node.kind === "microblog") return 0.34;
+  if (node.group === "bot" || node.group === "suspect") return 0.58;
+  return 0.18;
+}
+
+function idleGlowOpacity(node: SpaceNode, reveal: number) {
+  if (!node.major) return 0.06 + reveal * 0.2;
+  if (isRealEventNode(node)) return 0.16;
+  return node.risk > 0.55 ? 0.42 : 0.28;
+}
+
+function idleGlowScale(node: SpaceNode) {
+  if (isRealEventNode(node)) return 3.1;
+  return node.major ? 4.7 : 3.3;
+}
+
+function selectionScale(node: SpaceNode, direct: boolean, connected: boolean) {
+  if (direct) {
+    if (isRealEventNode(node)) return 1.18;
+    if (node.kind === "microblog") return 1.42;
+    return 1.72;
+  }
+  if (connected) return isRealEventNode(node) ? 1.08 : 1.18;
+  return 1;
+}
+
+function selectionEmissiveIntensity(node: SpaceNode, direct: boolean, connected: boolean) {
+  if (direct) {
+    if (isRealEventNode(node)) return 0.2;
+    if (node.kind === "microblog") return 0.82;
+    return 1.25;
+  }
+  if (connected) return isRealEventNode(node) ? 0.12 : 0.45;
+  return idleEmissiveIntensity(node);
+}
+
+function selectionGlowOpacity(node: SpaceNode, direct: boolean, connected: boolean) {
+  if (direct) {
+    if (isRealEventNode(node)) return 0.28;
+    if (node.kind === "microblog") return 0.62;
+    return 0.72;
+  }
+  if (connected) return isRealEventNode(node) ? 0.22 : 0.46;
+  return idleGlowOpacity(node, 0);
+}
+
+function selectionGlowScale(node: SpaceNode, direct: boolean, connected: boolean) {
+  if (direct) {
+    if (isRealEventNode(node)) return 3.6;
+    if (node.kind === "microblog") return 5.2;
+    return 6.2;
+  }
+  if (connected) return isRealEventNode(node) ? 3.1 : 4.6;
+  return idleGlowScale(node);
+}
+
+function edgeExposureScale(edge: SpaceEdge) {
+  const eventNode = edge.displaySourceNode.kind === "microblog"
+    ? edge.displaySourceNode
+    : edge.displayTargetNode.kind === "microblog"
+      ? edge.displayTargetNode
+      : null;
+  if (!eventNode) return 1;
+  const fanout = Math.sqrt(Math.max(1, eventNode.degree));
+  const fanoutScale = 18 / (18 + fanout);
+  if (eventNode.label === "fake") {
+    return clamp(0.12 + 0.84 * fanoutScale, 0.34, 0.88);
+  }
+  return clamp(0.1 + 0.54 * fanoutScale, 0.18, 0.56);
+}
+
+function edgeCenterAlphaScale(edge: SpaceEdge, t: number) {
+  if (!edge.directTopic) return 1;
+  const eventNode = edge.displaySourceNode.kind === "microblog" ? edge.displaySourceNode : null;
+  if (!eventNode) return 1;
+  const centerFloor = eventNode.label === "fake" ? 0.38 : 0.2;
+  return centerFloor + (1 - centerFloor) * Math.pow(t, 0.7);
+}
+
 function nodeGroup(node: GraphNode): NodeGroup {
   if (node.kind === "microblog") return "event";
   if (node.botLabel === "bot" || (node.botScore ?? 0) >= 0.75) return "bot";
@@ -1413,7 +1529,7 @@ function nodeRisk(node: GraphNode) {
 }
 
 function nodeColor(node: GraphNode, group: NodeGroup, risk: number) {
-  if (node.kind === "microblog") return new THREE.Color(node.label === "fake" ? COLORS.hot : COLORS.ink);
+  if (node.kind === "microblog") return new THREE.Color(node.label === "fake" ? COLORS.hot : "#9fb6c8");
   if (group === "bot") return new THREE.Color(COLORS.hot);
   if (group === "suspect") return new THREE.Color("#f4a261");
   if (group === "human") return new THREE.Color(COLORS.cool);
@@ -1421,7 +1537,7 @@ function nodeColor(node: GraphNode, group: NodeGroup, risk: number) {
 }
 
 function tooltipFor(node: SpaceNode, space: PreparedSpace): string {
-  const kind = node.kind === "microblog" ? "微博事件" : "参与者";
+  const kind = node.semanticLabel ?? (node.kind === "microblog" ? "微博事件" : "参与者");
   const botPct = Math.round((node.botShare ?? node.botScore ?? node.risk) * 100);
   const fakePct = Math.round((node.fakeShare ?? (node.kind === "microblog" && node.label === "fake" ? 1 : 0)) * 100);
   return `<b>${escapeHTML(node.name ?? node.id)}</b>
