@@ -85,10 +85,9 @@ The coordinated views include:
 - STORY NETWORK · real MisBot graph-derived canvas projection for scroll-driven
   zoom/pan, organizer-candidate highlights, and evidence focus;
 - TIMELINE · monthly fake/real stacked bars + engagement line + d3 brush;
-- NETWORK · d3-force graph for small events, switching to a fullscreen-capable
-  3D propagation space for large events so users can rotate, zoom, hover, click,
-  and drag actors in the complete graph;
-- ORBIT · three.js engagement starfield with scroll-driven camera phases and raycast selection;
+- NETWORK · fullscreen-capable `PropagationSpace` three.js view for large
+  events so users can rotate, zoom, hover, click, drag actors, and inspect
+  one-hop neighborhoods in the complete propagation graph;
 - KEYWORDS · keyword bubble cloud with term-size and fake-share encoding;
 - ACTORS · high-activity actor bubble field with engagement size and fake-share rings;
 - PHRASES · repeated text templates with bot-share signal;

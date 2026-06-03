@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { COLORS } from "@/lib/charts/colors";
 import type { EdgeType, GraphEdge, GraphNode, GraphShard } from "@/lib/charts/types";
@@ -49,6 +50,8 @@ interface PreparedSpace {
   nodes: SpaceNode[];
   edges: SpaceEdge[];
   nodeById: Map<string, SpaceNode>;
+  adjacency: Map<string, Set<string>>;
+  edgesByNode: Map<string, SpaceEdge[]>;
   edgeCounts: Record<EdgeType, number>;
   roots: SpaceNode[];
   topActors: SpaceNode[];
@@ -72,18 +75,40 @@ interface SpaceRuntime {
   select: (id: string | null) => void;
 }
 
-interface StrongLine extends Line2 {
-  userData: {
-    edge: SpaceEdge;
-    material: LineMaterial;
-    geometry: LineGeometry;
-  };
+interface RiskPlaneRuntime {
+  group: THREE.Group;
+  ripple: THREE.Mesh<THREE.RingGeometry, RiskRippleMaterial>;
+  rippleMaterial: RiskRippleMaterial;
+  baseOpacity: number;
+  phase: number;
 }
+
+type EdgeShaderMaterial = THREE.ShaderMaterial & {
+  uniforms: {
+    layerOpacity: { value: number };
+    baseOpacityScale: { value: number };
+    dashDuty: { value: number };
+    dashFrequency: { value: number };
+    motionStrength: { value: number };
+    streamWidth: { value: number };
+    streamSpeed: { value: number };
+    time: { value: number };
+  };
+};
+
+type RiskRippleMaterial = THREE.ShaderMaterial & {
+  uniforms: {
+    opacity: { value: number };
+    rippleColor: { value: THREE.Color };
+  };
+};
 
 const EDGE_ORDER: EdgeType[] = ["repost", "comment", "attitude", "repostCascade", "commentReply"];
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const PULSE_INSTANCE_LIMIT = 360;
+const WEAK_EDGE_CURVE_SEGMENTS = 4;
+const STRONG_EDGE_CURVE_SEGMENTS = 8;
 
 export function PropagationSpace({ shard }: PropagationSpaceProps) {
   const prepared = useMemo(() => prepareSpace(shard), [shard]);
@@ -238,9 +263,22 @@ function SpaceStage({
     hotLight.position.set(0, 7, 10);
     scene.add(hotLight);
 
+    const composer = new EffectComposer(renderer);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const renderPass = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(1, 1),
+      expanded ? 0.54 : 0.44,
+      0.38,
+      0.18,
+    );
+    composer.addPass(renderPass);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
-    addRiskPlanes(graphGroup);
+    const riskPlanes = addRiskPlanes(graphGroup);
 
     // Ambient floating particles
     const particleCount = 320;
@@ -325,50 +363,50 @@ function SpaceStage({
       pickTargets.push(mesh);
     }
 
-    const edgePositions = new Float32Array(prepared.weakEdges.length * 6);
-    const edgeColors = new Float32Array(prepared.weakEdges.length * 6);
+    const weakEdgeStride = WEAK_EDGE_CURVE_SEGMENTS * 6;
+    const weakEdgeVertexCount = WEAK_EDGE_CURVE_SEGMENTS * 2;
+    const edgePositions = new Float32Array(prepared.weakEdges.length * weakEdgeStride);
+    const edgeColors = new Float32Array(prepared.weakEdges.length * weakEdgeStride);
+    const edgeAlphas = new Float32Array(prepared.weakEdges.length * weakEdgeVertexCount);
+    const edgeProgresses = new Float32Array(prepared.weakEdges.length * weakEdgeVertexCount);
+    const edgePhases = new Float32Array(prepared.weakEdges.length * weakEdgeVertexCount);
     const edgeGeometry = new THREE.BufferGeometry();
     edgeGeometry.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3).setUsage(THREE.DynamicDrawUsage));
     edgeGeometry.setAttribute("color", new THREE.BufferAttribute(edgeColors, 3));
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.04,
-      depthWrite: false,
+    edgeGeometry.setAttribute("edgeAlpha", new THREE.BufferAttribute(edgeAlphas, 1).setUsage(THREE.DynamicDrawUsage));
+    edgeGeometry.setAttribute("edgeProgress", new THREE.BufferAttribute(edgeProgresses, 1).setUsage(THREE.DynamicDrawUsage));
+    edgeGeometry.setAttribute("edgePhase", new THREE.BufferAttribute(edgePhases, 1).setUsage(THREE.DynamicDrawUsage));
+    const edgeMaterial = createEdgeShaderMaterial(0.04, 0.34, 0.32, {
+      baseOpacityScale: 1,
+      streamWidth: 0.18,
     });
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     graphGroup.add(edgeLines);
 
-    const strongLines: StrongLine[] = [];
-    for (const edge of prepared.strongEdges) {
-      const geometry = new LineGeometry();
-      const source = edge.displaySourceNode.position;
-      const target = edge.displayTargetNode.position;
-      const distance = source.distanceTo(target);
-      const bend = Math.min(3.5, distance * 0.22) * (edge.sourceNode.id < edge.targetNode.id ? 1 : -1);
-      const control = quadraticBezierControl(source, target, bend);
-      const positions = sampleQuadraticBezier(source, control, target, 8);
-      const colors = sampleQuadraticBezierColors(
-        edge.displaySourceNode.color,
-        edge.displayTargetNode.color,
-        8,
-      );
-      geometry.setPositions(positions);
-      geometry.setColors(colors);
-      const material = new LineMaterial({
-        linewidth: edge.width,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.48,
-        depthWrite: false,
-        resolution: new THREE.Vector2(1, 1),
-      });
-      const line = new Line2(geometry, material) as unknown as StrongLine;
-      line.computeLineDistances();
-      line.userData = { edge, material, geometry };
-      graphGroup.add(line);
-      strongLines.push(line);
-    }
+    const weakEdgeIndexByKey = new Map(prepared.weakEdges.map((edge, index) => [edgeKey(edge), index]));
+    const strongEdgeStride = STRONG_EDGE_CURVE_SEGMENTS * 6;
+    const strongEdgeVertexCount = STRONG_EDGE_CURVE_SEGMENTS * 2;
+    const strongEdgePositions = new Float32Array(prepared.strongEdges.length * strongEdgeStride);
+    const strongEdgeColors = new Float32Array(prepared.strongEdges.length * strongEdgeStride);
+    const strongEdgeAlphas = new Float32Array(prepared.strongEdges.length * strongEdgeVertexCount);
+    const strongEdgeProgresses = new Float32Array(prepared.strongEdges.length * strongEdgeVertexCount);
+    const strongEdgePhases = new Float32Array(prepared.strongEdges.length * strongEdgeVertexCount);
+    const strongEdgeGeometry = new THREE.BufferGeometry();
+    strongEdgeGeometry.setAttribute("position", new THREE.BufferAttribute(strongEdgePositions, 3).setUsage(THREE.DynamicDrawUsage));
+    strongEdgeGeometry.setAttribute("color", new THREE.BufferAttribute(strongEdgeColors, 3).setUsage(THREE.DynamicDrawUsage));
+    strongEdgeGeometry.setAttribute("edgeAlpha", new THREE.BufferAttribute(strongEdgeAlphas, 1).setUsage(THREE.DynamicDrawUsage));
+    strongEdgeGeometry.setAttribute("edgeProgress", new THREE.BufferAttribute(strongEdgeProgresses, 1).setUsage(THREE.DynamicDrawUsage));
+    strongEdgeGeometry.setAttribute("edgePhase", new THREE.BufferAttribute(strongEdgePhases, 1).setUsage(THREE.DynamicDrawUsage));
+    const strongEdgeMaterial = createEdgeShaderMaterial(0.38, 0.95, 0.52, {
+      baseOpacityScale: 0.22,
+      dashDuty: 0.34,
+      dashFrequency: 14,
+      streamWidth: 0.075,
+    });
+    const strongEdgeLines = new THREE.LineSegments(strongEdgeGeometry, strongEdgeMaterial);
+    strongEdgeLines.renderOrder = 5;
+    graphGroup.add(strongEdgeLines);
+    const strongEdgeIndexByKey = new Map(prepared.strongEdges.map((edge, index) => [edgeKey(edge), index]));
 
     const pulseDummy = new THREE.Object3D();
     const pulseColor = new THREE.Color();
@@ -421,11 +459,10 @@ function SpaceStage({
       const width = Math.max(1, rect.width);
       const height = Math.max(1, rect.height);
       renderer.setSize(width, height, false);
+      composer.setSize(width, height);
+      bloomPass.resolution.set(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      for (const line of strongLines) {
-        line.userData.material.resolution.set(width, height);
-      }
     }
 
     function resetCamera() {
@@ -442,39 +479,59 @@ function SpaceStage({
       raycaster.setFromCamera(pointer, camera);
     }
 
-    function updateEdges() {
-      for (let i = 0; i < prepared.weakEdges.length; i += 1) {
-        const edge = prepared.weakEdges[i];
-        const source = edge.displaySourceNode.position;
-        const target = edge.displayTargetNode.position;
-        const p = i * 6;
-        edgePositions[p] = source.x;
-        edgePositions[p + 1] = source.y;
-        edgePositions[p + 2] = source.z;
-        edgePositions[p + 3] = target.x;
-        edgePositions[p + 4] = target.y;
-        edgePositions[p + 5] = target.z;
-        edgeColors[p] = edge.displaySourceNode.color.r;
-        edgeColors[p + 1] = edge.displaySourceNode.color.g;
-        edgeColors[p + 2] = edge.displaySourceNode.color.b;
-        edgeColors[p + 3] = edge.displayTargetNode.color.r;
-        edgeColors[p + 4] = edge.displayTargetNode.color.g;
-        edgeColors[p + 5] = edge.displayTargetNode.color.b;
-      }
-      (edgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-      (edgeGeometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
-      for (const line of strongLines) {
-        const edge = line.userData.edge;
-        const source = edge.displaySourceNode.position;
-        const target = edge.displayTargetNode.position;
-        const distance = source.distanceTo(target);
-        const bend = Math.min(3.5, distance * 0.22) * (edge.sourceNode.id < edge.targetNode.id ? 1 : -1);
-        const control = quadraticBezierControl(source, target, bend);
-        line.userData.geometry.setPositions(sampleQuadraticBezier(source, control, target, 8));
-        line.userData.geometry.setColors(
-          sampleQuadraticBezierColors(edge.displaySourceNode.color, edge.displayTargetNode.color, 8),
+    function updateEdges(touchedEdges?: SpaceEdge[]) {
+      const weakUpdates = touchedEdges
+        ? uniqueEdges(touchedEdges.filter((edge) => !edge.strong))
+        : prepared.weakEdges;
+      for (const edge of weakUpdates) {
+        const i = weakEdgeIndexByKey.get(edgeKey(edge));
+        if (i == null) continue;
+        writeEdgeCurveSegments(
+          edge,
+          edgePositions,
+          edgeColors,
+          edgeAlphas,
+          edgeProgresses,
+          edgePhases,
+          i * weakEdgeStride,
+          i * weakEdgeVertexCount,
+          WEAK_EDGE_CURVE_SEGMENTS,
+          1,
         );
-        line.computeLineDistances();
+      }
+      if (weakUpdates.length) {
+        (edgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+        (edgeGeometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+        (edgeGeometry.attributes.edgeAlpha as THREE.BufferAttribute).needsUpdate = true;
+        (edgeGeometry.attributes.edgeProgress as THREE.BufferAttribute).needsUpdate = true;
+        (edgeGeometry.attributes.edgePhase as THREE.BufferAttribute).needsUpdate = true;
+      }
+
+      const strongUpdates = touchedEdges
+        ? uniqueEdges(touchedEdges.filter((edge) => edge.strong))
+        : prepared.strongEdges;
+      for (const edge of strongUpdates) {
+        const i = strongEdgeIndexByKey.get(edgeKey(edge));
+        if (i == null) continue;
+        writeEdgeCurveSegments(
+          edge,
+          strongEdgePositions,
+          strongEdgeColors,
+          strongEdgeAlphas,
+          strongEdgeProgresses,
+          strongEdgePhases,
+          i * strongEdgeStride,
+          i * strongEdgeVertexCount,
+          STRONG_EDGE_CURVE_SEGMENTS,
+          1,
+        );
+      }
+      if (strongUpdates.length) {
+        (strongEdgeGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+        (strongEdgeGeometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+        (strongEdgeGeometry.attributes.edgeAlpha as THREE.BufferAttribute).needsUpdate = true;
+        (strongEdgeGeometry.attributes.edgeProgress as THREE.BufferAttribute).needsUpdate = true;
+        (strongEdgeGeometry.attributes.edgePhase as THREE.BufferAttribute).needsUpdate = true;
       }
       refreshSelection(selectedRef.current);
     }
@@ -507,19 +564,11 @@ function SpaceStage({
         selectedLines.geometry = selectedGeometry;
         return;
       }
-      const selectedEdges = prepared.edges.filter((edge) => edge.source === id || edge.target === id);
-      const selectedPositions = new Float32Array(selectedEdges.length * 6);
+      const selectedEdges = prepared.edgesByNode.get(id) ?? [];
+      const selectedPositions = new Float32Array(selectedEdges.length * WEAK_EDGE_CURVE_SEGMENTS * 6);
       for (let i = 0; i < selectedEdges.length; i += 1) {
         const edge = selectedEdges[i];
-        const source = edge.displaySourceNode.position;
-        const target = edge.displayTargetNode.position;
-        const p = i * 6;
-        selectedPositions[p] = source.x;
-        selectedPositions[p + 1] = source.y;
-        selectedPositions[p + 2] = source.z;
-        selectedPositions[p + 3] = target.x;
-        selectedPositions[p + 4] = target.y;
-        selectedPositions[p + 5] = target.z;
+        writeEdgeCurvePositions(edge, selectedPositions, i * WEAK_EDGE_CURVE_SEGMENTS * 6, WEAK_EDGE_CURVE_SEGMENTS);
       }
       selectedGeometry = new THREE.BufferGeometry();
       selectedGeometry.setAttribute("position", new THREE.BufferAttribute(selectedPositions, 3));
@@ -549,9 +598,9 @@ function SpaceStage({
           glowSprite.visible = mesh.visible;
         }
       }
-      edgeMaterial.opacity = 0.018 + zoomReveal * 0.105;
-      for (const line of strongLines) {
-        const edge = line.userData.edge;
+      edgeMaterial.uniforms.layerOpacity.value = 0.02 + zoomReveal * 0.1;
+      for (let i = 0; i < prepared.strongEdges.length; i += 1) {
+        const edge = prepared.strongEdges[i];
         const selectedNode = selectedRef.current ? prepared.nodeById.get(selectedRef.current) : null;
         const expandNeighborhood = selectedNode?.kind === "actor";
         const active =
@@ -561,8 +610,14 @@ function SpaceStage({
           (expandNeighborhood &&
             (isNeighbor(prepared, selectedRef.current, edge.source) ||
               isNeighbor(prepared, selectedRef.current, edge.target)));
-        line.userData.material.opacity = active ? 0.28 + zoomReveal * 0.12 : 0.08;
+        writeEdgeAlpha(
+          strongEdgeAlphas,
+          i * STRONG_EDGE_CURVE_SEGMENTS * 2,
+          STRONG_EDGE_CURVE_SEGMENTS,
+          active ? 0.76 + zoomReveal * 0.18 : 0.18,
+        );
       }
+      (strongEdgeGeometry.attributes.edgeAlpha as THREE.BufferAttribute).needsUpdate = true;
       updatePulses(time);
     }
 
@@ -572,7 +627,9 @@ function SpaceStage({
         const source = edge.displaySourceNode.position;
         const target = edge.displayTargetNode.position;
         const u = (time * edge.pulseSpeed + edge.phase) % 1;
-        pulseDummy.position.lerpVectors(source, target, u);
+        const control = edgeCurveControl(edge);
+        const eased = easePulseProgress(clamp(u + Math.sin(time * 0.0022 + edge.phase * TAU) * 0.035, 0, 1));
+        quadraticBezierPoint(source, control, target, eased, pulseDummy.position);
         pulseDummy.scale.setScalar(0.08 + Math.min(0.22, edge.width * 0.045));
         pulseDummy.updateMatrix();
         pulses.setMatrixAt(i, pulseDummy.matrix);
@@ -627,7 +684,7 @@ function SpaceStage({
           const next = dragPoint.sub(dragOffset);
           dragging.position.copy(next);
           dragging.userData.node.position.copy(next);
-          updateEdges();
+          updateEdges(prepared.edgesByNode.get(dragging.userData.node.id) ?? []);
         }
         renderer.domElement.style.cursor = "grabbing";
         return;
@@ -666,6 +723,9 @@ function SpaceStage({
       if (disposed) return;
       if (visible) {
         controls.update();
+        const edgeTime = time * 0.001;
+        edgeMaterial.uniforms.time.value = edgeTime;
+        strongEdgeMaterial.uniforms.time.value = edgeTime;
         const pulse = 1 + Math.sin(time * 0.0024) * 0.04;
         for (const root of prepared.roots) {
           const mesh = nodeMeshes.get(root.id);
@@ -673,8 +733,9 @@ function SpaceStage({
         }
         particles.rotation.y = time * 0.00002;
         particles.rotation.x = Math.sin(time * 0.000008) * 0.08;
+        updateRiskPlanes(riskPlanes, time);
         updateVisibility(time);
-        renderer.render(scene, camera);
+        composer.render();
       }
       raf = requestAnimationFrame(tick);
     }
@@ -724,6 +785,7 @@ function SpaceStage({
         if (Array.isArray(material)) material.forEach((item) => item.dispose());
         else material?.dispose();
       });
+      composer.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       runtimeRef.current = null;
@@ -735,7 +797,7 @@ function SpaceStage({
 
 function prepareSpace(shard: GraphShard): PreparedSpace {
   const degree = new Map<string, number>();
-  const adjacency = new Map<string, string[]>();
+  const adjacency = new Map<string, Set<string>>();
   const pairCounts = new Map<string, number>();
   const edgeCounts = Object.fromEntries(EDGE_ORDER.map((type) => [type, 0])) as Record<EdgeType, number>;
 
@@ -744,16 +806,17 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
     edgeCounts[edge.type] = (edgeCounts[edge.type] ?? 0) + 1;
     pairCounts.set(edgeKey(edge), (pairCounts.get(edgeKey(edge)) ?? 0) + 1);
-    if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
-    if (!adjacency.has(edge.target)) adjacency.set(edge.target, []);
-    adjacency.get(edge.source)?.push(edge.target);
-    adjacency.get(edge.target)?.push(edge.source);
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
+    if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set());
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
   }
 
   const rootIds = shard.graph.nodes
     .filter((node) => node.kind === "microblog")
     .map((node) => node.id);
   const distance = graphDistances(rootIds, adjacency);
+  const parentByNode = cascadeParents(shard.graph.edges, distance);
   const maxDegree = Math.max(1, ...shard.graph.nodes.map((node) => degree.get(node.id) ?? 0));
   const influenceById = new Map(
     shard.graph.nodes.map((node) => [node.id, nodeInfluence(node, degree.get(node.id) ?? 0)]),
@@ -789,7 +852,11 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
         eventIndex += 1;
       } else {
         const i = actorIndex;
-        const theta = i * GOLDEN_ANGLE + risk * 1.55;
+        const parentId = parentByNode.get(node.id);
+        const parentAngle = parentId ? hashUnit(`${parentId}|branch`) * TAU : null;
+        const theta = parentAngle == null
+          ? i * GOLDEN_ANGLE + risk * 1.55
+          : parentAngle + (hashUnit(`${node.id}|child-angle`) - 0.5) * 0.82 + risk * 0.42;
         const layerY = (risk - 0.5) * 19 + (hashUnit(node.id) - 0.5) * 4.8;
         const shell = 13.5 + (1 - risk) * 12.5 + Math.min(5, nodeDistance) * 1.8;
         const flat = Math.sqrt(Math.max(2, shell * shell - layerY * layerY));
@@ -889,11 +956,32 @@ function prepareSpace(shard: GraphShard): PreparedSpace {
     .filter((edge) => !edge.directTopic)
     .sort((a, b) => b.strength - a.strength)
     .slice(0, 180);
+  const edgesByNode = new Map<string, SpaceEdge[]>();
+  for (const edge of edges) {
+    if (!edgesByNode.has(edge.source)) edgesByNode.set(edge.source, []);
+    if (!edgesByNode.has(edge.target)) edgesByNode.set(edge.target, []);
+    edgesByNode.get(edge.source)?.push(edge);
+    edgesByNode.get(edge.target)?.push(edge);
+  }
 
-  return { nodes, edges, nodeById, edgeCounts, roots, topActors, strongEdges, weakEdges, pulseEdges, maxDegree, maxInfluence };
+  return { nodes, edges, nodeById, adjacency, edgesByNode, edgeCounts, roots, topActors, strongEdges, weakEdges, pulseEdges, maxDegree, maxInfluence };
 }
 
-function graphDistances(rootIds: string[], adjacency: Map<string, string[]>) {
+function cascadeParents(edges: GraphEdge[], distances: Map<string, number>) {
+  const parentByNode = new Map<string, string>();
+  for (const edge of edges) {
+    if (edge.type !== "repostCascade" && edge.type !== "commentReply") continue;
+    if (!edge.source.startsWith("u:") || !edge.target.startsWith("u:")) continue;
+    const sourceDistance = distances.get(edge.source) ?? Number.POSITIVE_INFINITY;
+    const targetDistance = distances.get(edge.target) ?? Number.POSITIVE_INFINITY;
+    const child = sourceDistance >= targetDistance ? edge.source : edge.target;
+    const parent = child === edge.source ? edge.target : edge.source;
+    if (!parentByNode.has(child)) parentByNode.set(child, parent);
+  }
+  return parentByNode;
+}
+
+function graphDistances(rootIds: string[], adjacency: Map<string, Set<string>>) {
   const distances = new Map<string, number>();
   const queue: string[] = [];
   for (const id of rootIds) {
@@ -913,12 +1001,6 @@ function graphDistances(rootIds: string[], adjacency: Map<string, string[]>) {
   return distances;
 }
 
-function edgePositionArray(edge: SpaceEdge) {
-  const source = edge.displaySourceNode.position;
-  const target = edge.displayTargetNode.position;
-  return [source.x, source.y, source.z, target.x, target.y, target.z];
-}
-
 function quadraticBezierControl(
   source: THREE.Vector3,
   target: THREE.Vector3,
@@ -930,40 +1012,152 @@ function quadraticBezierControl(
   return mid.add(perp.multiplyScalar(bend));
 }
 
-function sampleQuadraticBezier(
+function edgeCurveControl(edge: SpaceEdge): THREE.Vector3 {
+  const source = edge.displaySourceNode.position;
+  const target = edge.displayTargetNode.position;
+  const distance = source.distanceTo(target);
+  const layerDelta = Math.abs(edge.displaySourceNode.distance - edge.displayTargetNode.distance);
+  const riskDelta = Math.abs(edge.displaySourceNode.risk - edge.displayTargetNode.risk);
+  const base = Math.min(edge.directTopic ? 3.8 : 5.8, distance * (edge.directTopic ? 0.18 : 0.24));
+  const height = base * (0.72 + layerDelta * 0.16 + riskDelta * 0.58);
+  const sign = hashUnit(`${edge.source}|${edge.target}|curve`) > 0.5 ? 1 : -1;
+  return quadraticBezierControl(source, target, height * sign);
+}
+
+function quadraticBezierPoint(
   p0: THREE.Vector3,
   p1: THREE.Vector3,
   p2: THREE.Vector3,
-  segments: number,
-): number[] {
-  const out: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const o = 1 - t;
-    const x = o * o * p0.x + 2 * o * t * p1.x + t * t * p2.x;
-    const y = o * o * p0.y + 2 * o * t * p1.y + t * t * p2.y;
-    const z = o * o * p0.z + 2 * o * t * p1.z + t * t * p2.z;
-    out.push(x, y, z);
-  }
-  return out;
+  t: number,
+  target: THREE.Vector3,
+) {
+  const o = 1 - t;
+  target.set(
+    o * o * p0.x + 2 * o * t * p1.x + t * t * p2.x,
+    o * o * p0.y + 2 * o * t * p1.y + t * t * p2.y,
+    o * o * p0.z + 2 * o * t * p1.z + t * t * p2.z,
+  );
 }
 
-function sampleQuadraticBezierColors(
+function writeEdgeCurvePositions(
+  edge: SpaceEdge,
+  positions: Float32Array,
+  offset: number,
+  segments: number,
+) {
+  const source = edge.displaySourceNode.position;
+  const target = edge.displayTargetNode.position;
+  const control = edgeCurveControl(edge);
+  let p = offset;
+  for (let i = 0; i < segments; i += 1) {
+    const t0 = i / segments;
+    const t1 = (i + 1) / segments;
+    p = writeQuadraticPoint(source, control, target, t0, positions, p);
+    p = writeQuadraticPoint(source, control, target, t1, positions, p);
+  }
+}
+
+function writeEdgeCurveSegments(
+  edge: SpaceEdge,
+  positions: Float32Array,
+  colors: Float32Array,
+  alphas: Float32Array,
+  progresses: Float32Array,
+  phases: Float32Array,
+  offset: number,
+  alphaOffset: number,
+  segments: number,
+  alphaScale: number,
+) {
+  writeEdgeCurvePositions(edge, positions, offset, segments);
+  let p = offset;
+  let a = alphaOffset;
+  for (let i = 0; i < segments; i += 1) {
+    const t0 = i / segments;
+    const t1 = (i + 1) / segments;
+    p = writeGradientColor(edge.displaySourceNode.color, edge.displayTargetNode.color, t0, colors, p);
+    p = writeGradientColor(edge.displaySourceNode.color, edge.displayTargetNode.color, t1, colors, p);
+    a = writeEdgeDynamicValue(t0, edge.phase, alphas, progresses, phases, a, alphaScale);
+    a = writeEdgeDynamicValue(t1, edge.phase, alphas, progresses, phases, a, alphaScale);
+  }
+}
+
+function writeQuadraticPoint(
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+  t: number,
+  out: Float32Array,
+  offset: number,
+) {
+  const o = 1 - t;
+  out[offset] = o * o * p0.x + 2 * o * t * p1.x + t * t * p2.x;
+  out[offset + 1] = o * o * p0.y + 2 * o * t * p1.y + t * t * p2.y;
+  out[offset + 2] = o * o * p0.z + 2 * o * t * p1.z + t * t * p2.z;
+  return offset + 3;
+}
+
+function writeGradientColor(
   c0: THREE.Color,
   c1: THREE.Color,
+  t: number,
+  out: Float32Array,
+  offset: number,
+) {
+  const o = 1 - t;
+  out[offset] = o * c0.r + t * c1.r;
+  out[offset + 1] = o * c0.g + t * c1.g;
+  out[offset + 2] = o * c0.b + t * c1.b;
+  return offset + 3;
+}
+
+function writeEdgeAlpha(
+  out: Float32Array,
+  offset: number,
   segments: number,
-): number[] {
-  const out: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const o = 1 - t;
-    out.push(o * c0.r + t * c1.r, o * c0.g + t * c1.g, o * c0.b + t * c1.b);
+  alphaScale: number,
+) {
+  let p = offset;
+  for (let i = 0; i < segments; i += 1) {
+    p = writeEdgeAlphaValue(i / segments, out, p, alphaScale);
+    p = writeEdgeAlphaValue((i + 1) / segments, out, p, alphaScale);
   }
-  return out;
+}
+
+function writeEdgeAlphaValue(t: number, out: Float32Array, offset: number, alphaScale: number) {
+  out[offset] = alphaScale * (1 - t * 0.76);
+  return offset + 1;
+}
+
+function writeEdgeDynamicValue(
+  t: number,
+  phase: number,
+  alphas: Float32Array,
+  progresses: Float32Array,
+  phases: Float32Array,
+  offset: number,
+  alphaScale: number,
+) {
+  writeEdgeAlphaValue(t, alphas, offset, alphaScale);
+  progresses[offset] = t;
+  phases[offset] = phase;
+  return offset + 1;
 }
 
 function edgeKey(edge: Pick<GraphEdge, "source" | "target" | "type">) {
   return `${edge.source}->${edge.target}|${edge.type}`;
+}
+
+function uniqueEdges(edges: SpaceEdge[]) {
+  const seen = new Set<string>();
+  const out: SpaceEdge[] = [];
+  for (const edge of edges) {
+    const key = edgeKey(edge);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
+  }
+  return out;
 }
 
 function nodeInfluence(node: GraphNode, degree: number) {
@@ -996,30 +1190,189 @@ function quantile(values: number[], q: number) {
   return values[index];
 }
 
-function addRiskPlanes(group: THREE.Group) {
+function createEdgeShaderMaterial(
+  layerOpacity: number,
+  motionStrength: number,
+  streamSpeed: number,
+  options: {
+    baseOpacityScale: number;
+    dashDuty?: number;
+    dashFrequency?: number;
+    streamWidth: number;
+  },
+): EdgeShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      layerOpacity: { value: layerOpacity },
+      baseOpacityScale: { value: options.baseOpacityScale },
+      dashDuty: { value: options.dashDuty ?? 1 },
+      dashFrequency: { value: options.dashFrequency ?? 0 },
+      motionStrength: { value: motionStrength },
+      streamWidth: { value: options.streamWidth },
+      streamSpeed: { value: streamSpeed },
+      time: { value: 0 },
+    },
+    vertexShader: `
+      attribute vec3 color;
+      attribute float edgeAlpha;
+      attribute float edgeProgress;
+      attribute float edgePhase;
+      varying vec3 vColor;
+      varying float vAlpha;
+      varying float vProgress;
+      varying float vPhase;
+
+      void main() {
+        vColor = color;
+        vAlpha = edgeAlpha;
+        vProgress = edgeProgress;
+        vPhase = edgePhase;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float layerOpacity;
+      uniform float baseOpacityScale;
+      uniform float dashDuty;
+      uniform float dashFrequency;
+      uniform float motionStrength;
+      uniform float streamWidth;
+      uniform float streamSpeed;
+      uniform float time;
+      varying vec3 vColor;
+      varying float vAlpha;
+      varying float vProgress;
+      varying float vPhase;
+
+      void main() {
+        float head = fract(vPhase + time * streamSpeed);
+        float trail = abs(vProgress - head);
+        trail = min(trail, 1.0 - trail);
+        float dash = 1.0;
+        if (dashFrequency > 0.5) {
+          float dashPhase = fract(vProgress * dashFrequency - time * streamSpeed * 0.46 + vPhase * 3.17);
+          dash = 1.0 - smoothstep(dashDuty, min(dashDuty + 0.08, 1.0), dashPhase);
+        }
+        float stream = (1.0 - smoothstep(0.0, max(streamWidth, 0.001), trail)) * dash;
+        float breathe = 0.76 + 0.24 * sin((time * 1.15 + vPhase) * 6.28318530718);
+        float baseAlpha = vAlpha * layerOpacity * baseOpacityScale * breathe;
+        float traceAlpha = stream * layerOpacity * motionStrength * (0.22 + vAlpha * 0.58);
+        float alpha = clamp(baseAlpha + traceAlpha, 0.0, 1.0);
+        if (alpha <= 0.002) discard;
+        vec3 color = vColor * (0.82 + baseOpacityScale * 0.18 + stream * (1.15 + motionStrength * 1.45));
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }) as EdgeShaderMaterial;
+}
+
+function createRiskRippleMaterial(color: number, opacity: number): RiskRippleMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      opacity: { value: opacity },
+      rippleColor: { value: new THREE.Color(color) },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float opacity;
+      uniform vec3 rippleColor;
+      varying vec2 vUv;
+
+      void main() {
+        float centerGlow = smoothstep(0.0, 0.5, vUv.y) * smoothstep(1.0, 0.5, vUv.y);
+        float edgeFeather = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.72, vUv.x);
+        gl_FragColor = vec4(rippleColor, opacity * (0.35 + centerGlow * 0.65) * edgeFeather);
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }) as RiskRippleMaterial;
+}
+
+function addRiskPlanes(group: THREE.Group): RiskPlaneRuntime[] {
   const planes = [
-    { y: -6.5, color: 0x6f9fd8, opacity: 0.1 },
-    { y: 0, color: 0x777777, opacity: 0.08 },
-    { y: 6.5, color: 0xe96a2c, opacity: 0.16 },
+    { y: -6.5, color: 0x6f9fd8, opacity: 0.12, phase: 0.12 },
+    { y: 0, color: 0x777777, opacity: 0.08, phase: 0.46 },
+    { y: 6.5, color: 0xe96a2c, opacity: 0.18, phase: 0.78 },
   ];
+  const runtimes: RiskPlaneRuntime[] = [];
   for (const plane of planes) {
-    const grid = new THREE.GridHelper(42, 18, plane.color, plane.color);
-    const material = grid.material as THREE.LineBasicMaterial;
-    material.transparent = true;
-    material.opacity = plane.opacity;
-    material.depthWrite = false;
-    grid.position.y = plane.y;
-    group.add(grid);
+    const planeGroup = new THREE.Group();
+    planeGroup.position.y = plane.y;
+
+    const gridMaterial = new THREE.LineBasicMaterial({
+      color: plane.color,
+      transparent: true,
+      opacity: plane.opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const grid = new THREE.LineSegments(createRadarGridGeometry(24, 5, 96, 18), gridMaterial);
+    planeGroup.add(grid);
+
+    const rippleMaterial = createRiskRippleMaterial(plane.color, plane.opacity * 0.72);
+    const ripple = new THREE.Mesh(new THREE.RingGeometry(1, 1.03, 96), rippleMaterial);
+    ripple.rotation.x = Math.PI / 2;
+    planeGroup.add(ripple);
+
+    group.add(planeGroup);
+    runtimes.push({
+      group: planeGroup,
+      ripple,
+      rippleMaterial,
+      baseOpacity: plane.opacity,
+      phase: plane.phase,
+    });
+  }
+  return runtimes;
+}
+
+function createRadarGridGeometry(radius: number, rings: number, segments: number, spokes: number) {
+  const positions: number[] = [];
+  for (let ring = 1; ring <= rings; ring += 1) {
+    const r = (radius * ring) / rings;
+    for (let i = 0; i < segments; i += 1) {
+      const a0 = (i / segments) * TAU;
+      const a1 = ((i + 1) / segments) * TAU;
+      positions.push(Math.cos(a0) * r, 0, Math.sin(a0) * r);
+      positions.push(Math.cos(a1) * r, 0, Math.sin(a1) * r);
+    }
+  }
+  for (let i = 0; i < spokes; i += 1) {
+    const a = (i / spokes) * TAU;
+    positions.push(Math.cos(a) * radius * 0.12, 0, Math.sin(a) * radius * 0.12);
+    positions.push(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geometry;
+}
+
+function updateRiskPlanes(planes: RiskPlaneRuntime[], time: number) {
+  for (const plane of planes) {
+    const progress = (time * 0.00011 + plane.phase) % 1;
+    const radius = 5.5 + progress * 18.5;
+    plane.group.rotation.y = Math.sin(time * 0.00005 + plane.phase * TAU) * 0.035;
+    plane.ripple.scale.set(radius, radius, 1);
+    plane.rippleMaterial.uniforms.opacity.value = plane.baseOpacity * (1 - progress) * 0.9;
   }
 }
 
 function isNeighbor(space: PreparedSpace, sourceId: string, targetId: string) {
   if (sourceId === targetId) return true;
-  return space.edges.some(
-    (edge) =>
-      (edge.source === sourceId && edge.target === targetId) ||
-      (edge.target === sourceId && edge.source === targetId),
-  );
+  return space.adjacency.get(sourceId)?.has(targetId) ?? false;
 }
 
 function resolvePulseEdges(space: PreparedSpace, selectedNodeId: string | null) {
@@ -1030,16 +1383,17 @@ function resolvePulseEdges(space: PreparedSpace, selectedNodeId: string | null) 
 }
 
 function pulseEdgesForNode(space: PreparedSpace, nodeId: string) {
-  const direct = space.edges
-    .filter((edge) => !edge.directTopic && (edge.source === nodeId || edge.target === nodeId))
+  const direct = (space.edgesByNode.get(nodeId) ?? [])
+    .filter((edge) => !edge.directTopic)
     .sort((a, b) => b.strength - a.strength);
   if (direct.length) return direct;
-  return space.edges
-    .filter(
-      (edge) =>
-        !edge.directTopic &&
-        (isNeighbor(space, nodeId, edge.source) || isNeighbor(space, nodeId, edge.target)),
-    )
+  const candidate = new Map<string, SpaceEdge>();
+  for (const neighborId of space.adjacency.get(nodeId) ?? []) {
+    for (const edge of space.edgesByNode.get(neighborId) ?? []) {
+      if (!edge.directTopic) candidate.set(edgeKey(edge), edge);
+    }
+  }
+  return [...candidate.values()]
     .sort((a, b) => b.strength - a.strength);
 }
 
@@ -1064,12 +1418,6 @@ function nodeColor(node: GraphNode, group: NodeGroup, risk: number) {
   if (group === "suspect") return new THREE.Color("#f4a261");
   if (group === "human") return new THREE.Color(COLORS.cool);
   return new THREE.Color(risk > 0.4 ? "#b08a64" : "#8b8b8b");
-}
-
-function edgeColor(type: EdgeType) {
-  if (type === "comment" || type === "commentReply") return new THREE.Color(COLORS.cool);
-  if (type === "repost" || type === "repostCascade") return new THREE.Color(COLORS.hot);
-  return new THREE.Color("#7d7167");
 }
 
 function tooltipFor(node: SpaceNode, space: PreparedSpace): string {
@@ -1098,6 +1446,12 @@ function hashUnit(value: string): number {
 function smoothstep(from: number, to: number, value: number) {
   const t = clamp((value - from) / (to - from), 0, 1);
   return t * t * (3 - 2 * t);
+}
+
+function easePulseProgress(value: number) {
+  return value < 0.5
+    ? 0.5 * Math.pow(value * 2, 1.65)
+    : 1 - 0.5 * Math.pow((1 - value) * 2, 0.72);
 }
 
 function clamp(value: number, min: number, max: number) {

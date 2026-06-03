@@ -1,4 +1,4 @@
-export type StageKind = "network" | "timeline" | "orbit";
+export type StageKind = "network" | "timeline" | "space";
 
 export interface StepHelpers {
   setStoryPreset: (presetId: string) => void;

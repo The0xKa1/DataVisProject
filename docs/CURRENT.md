@@ -31,11 +31,16 @@ instead of forcing thousands of nodes into one SVG force layout.
 - Story state: `activeStoryPresetId`, story viewport, and highlighted nodes
   sit in Zustand. Step cards activate named presets such as `fake-burst`,
   `propagation-core`, `template-cluster`, `bot-heavy`, and `evidence-focus`.
-- Selection (`selectedId`) patches network + orbit imperatively via refs;
-  only the evidence card re-renders through React.
-- Three.js orbit is mounted ONCE; star meshes diff on filter changes
-  (`stars: Map<eventId, Mesh>`). IntersectionObserver gates rAF when
-  off-screen. Camera state lives on the controls object across filters.
+- Selection uses `selectedId` and `selectedActorId` in Zustand; the story
+  canvas, evidence card, and `PropagationSpace` respond without page-wide
+  React rerenders.
+- 3D pipeline: `scripts/build_misbot_dashboard.py` writes `GraphShard` JSON
+  under `public/data/misbot_full_graphs/`; the analyst console loads it into
+  Zustand as `graphShard`; `PropagationSpace` maps it to three.js meshes,
+  shader-driven curved line buffers, postprocessed glow, and `InstancedMesh`
+  flow pulses.
+- `PropagationSpace.prepareSpace` precomputes adjacency sets, per-node edge
+  lists, BFS distance, risk groups, and influence scores before the render loop.
 - Page composition (`app/page.tsx`):
   Hero → Signals (dataset facts) → FilterBar (sticky) → Scrollytelling
   case study → Full-coverage analyst console → Principles → Colophon.
@@ -119,12 +124,69 @@ npm run build && npm start
 
 ## Immediate Focus
 
-1. Review the background-network story at `http://localhost:3000/#work`.
+1. Review the background-network story at `http://localhost:3000/#case-study`.
 2. Review the full-coverage analyst console at `http://localhost:3000/#analyst-console`.
 3. Tune the final case-study narrative around the strongest burst/hub/template combination.
 4. Confirm team responsibilities and presentation ownership.
 
 ## Completion Notes
+
+### StoryNetworkCanvas cinematic background pass (2026-06-03)
+
+- Added a two-layer canvas stack for the scrollytelling story network: the
+  lower layer renders blurred/saturated atmosphere and bloom, while the upper
+  layer keeps crisp edges, nodes, labels, and pointer interaction.
+- Reworked story-network edges from flat strokes into source-to-target alpha
+  gradients with much quieter inactive edges, so non-current topology reads as
+  background structure instead of dense color blocks.
+- Added deterministic edge-control-point wobble, propagation-delay flow
+  particles, distance attenuation, and a focus-change ripple so step changes
+  feel more like information diffusion than uniform animation.
+- Changed rendered node sizing to a nonlinear scale: microblog hubs stay
+  visually dominant while ordinary actor nodes compress into a finer starfield.
+- Added parallax depth grid/dust, stronger vignette masking, and dark-backed
+  hover/selected labels to improve cinematic focus and readability.
+- Corrected the hero CTA and review link from the stale `#work` anchor to the
+  real `#case-study` scrollytelling section.
+- Verified with `npm run typecheck`, `npm run build`, and browser QA at
+  `http://127.0.0.1:3004/#case-study`: the two canvas layers mount, render
+  non-empty orange/blue network pixels, and stay active through the
+  `fake-burst` scroll step with no application console errors.
+
+### 3D PropagationSpace smoothing pass (2026-06-02)
+
+- Replaced repeated selected-neighborhood edge scans with precomputed adjacency
+  sets and per-node edge lists, so actor one-hop queries are O(1) per neighbor
+  instead of scanning the full edge list.
+- Converted weak propagation edges and selected-neighborhood lines from straight
+  segments into deterministic multi-segment Bezier curves with source-to-target
+  vertex-color gradients.
+- Merged strong-edge rendering into a single shader-driven curve buffer instead
+  of allocating one `Line2` object per strong edge.
+- Dragging a node now rewrites only that node's adjacent edge curves in the
+  batched buffers instead of recomputing every edge on each pointer move.
+- Added per-vertex edge alpha attributes so weak and strong edges fade from
+  source to target through `ShaderMaterial` rather than baked RGB darkening.
+- Added per-edge progress and phase shader attributes so weak and strong edges
+  now breathe and carry time-driven traveling highlights on the GPU.
+- Tuned strong edges away from continuous glowing tubes: they now render as
+  faint evidence skeletons with short dashed traveling traces.
+- Moved flow pulses onto the same curved paths and added subtle non-linear
+  timing so propagation motion reads less mechanically.
+- Added a restrained `EffectComposer` chain with `UnrealBloomPass` so flow
+  pulses and emissive nodes read as luminous propagation traces.
+- Replaced rectangular `GridHelper` risk planes with circular radar grids and
+  fragment-shader expanding rings.
+- Added cascade/reply parent-angle bias so actor children in a propagation
+  branch cluster nearer their parent rather than scattering uniformly.
+- Cleaned current docs to refer to `PropagationSpace` instead of removed
+  legacy three.js scene labels.
+
+### Midterm LaTeX report draft (2026-06-01)
+
+- Added `report/midterm_report.tex` for the course midterm document, covering
+  background, task definitions, data, design plan, current implementation
+  progress, and remaining work with a Zhejiang University course cover.
 
 ### 3D large graph propagation pass (2026-06-01)
 
@@ -208,10 +270,10 @@ npm run build && npm start
 - CHECKED downloaded and validated: 2,104 microblogs, 1,185,701 comments, 1,868,174 reposts, 732,444 actors.
 - Front-end migrated to d3 v7 + three.js loaded via importmap (the old static build, now archived).
 - Glyph evolution (P0–Phase 6 of the static build) preserved in `legacy/src/app.js`.
-- **Phase 7 of the v0 port complete**: Next.js + v0 INTERFACE shell, 8 dashboard panels ported into the Work bento grid, Zustand store, tooltip portal, IntersectionObserver-gated orbit, brush-preserving timeline.
+- **Phase 7 of the v0 port complete**: Next.js + v0 INTERFACE shell, 8 dashboard panels ported into the Work bento grid, Zustand store, tooltip portal, IntersectionObserver-gated charts, brush-preserving timeline.
 - **Phase 8 copy**: hero word swapped to MISBOT, Signals reframed as dataset facts, Principles rewritten as audit posture, Colophon credits MisBot/Next.js/d3/three/typography.
-- **Hydration bug fix**: Network, timeline, and orbit chart containers now mount before dashboard data hydrates, so d3/three initialization is not skipped on first load.
-- **Visual impact pass**: keyword and actor bar views replaced with bubble/cloud encodings; orbit now uses scroll progress to shift camera, star separation, and motion tempo.
+- **Hydration bug fix**: chart containers now mount before dashboard data hydrates, so d3/three initialization is not skipped on first load.
+- **Visual impact pass**: keyword and actor bar views replaced with bubble/cloud encodings; legacy three.js motion used scroll progress to shift camera, separation, and tempo.
 - **Full-coverage MisBot pass**: `scripts/build_misbot_dashboard.py` now emits all
   23,622 information instances, 800 keyword rows, 800 phrase rows, 2,000 actor
   rows, coordination burst/hub/template indexes, and latest-event complete

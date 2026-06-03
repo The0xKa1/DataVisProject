@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as d3 from "d3";
 import { COLORS } from "@/lib/charts/colors";
 import { resolveStoryNetwork } from "@/lib/charts/story-network";
-import type { StoryNetwork, StoryNetworkNode, StoryNetworkEdge } from "@/lib/charts/types";
+import type { StoryFocusRegion, StoryNetwork, StoryNetworkNode, StoryNetworkEdge } from "@/lib/charts/types";
 import { escapeHTML, labelName, selectionRuleName, storyLabelName } from "@/lib/format";
 import { useDashboardStore } from "@/lib/store/dashboard-store";
 import { useTooltip } from "@/lib/store/tooltip-store";
@@ -26,12 +26,18 @@ interface FlowEdge {
   target: StoryNetworkNode;
   phase: number;
   speed: number;
+  delay: number;
+  intensity: number;
+  spread: number;
 }
 
-const FLOW_EDGE_CAP = 190;
+const FLOW_EDGE_CAP = 220;
+const RIPPLE_DURATION = 2.4;
+const LABEL_FONT = '10px "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 export function StoryNetworkCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const glowCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentViewRef = useRef<Viewport>({ centerX: 0, centerY: 0, scale: 0 });
   const hoveredRef = useRef<StoryNetworkNode | null>(null);
 
@@ -56,11 +62,15 @@ export function StoryNetworkCanvas() {
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
+    const glowCanvasEl = glowCanvasRef.current;
     const context = canvasEl?.getContext("2d");
+    const glowContext = glowCanvasEl?.getContext("2d");
     const storyData = story;
-    if (!canvasEl || !context || !storyData) return;
+    if (!canvasEl || !glowCanvasEl || !context || !glowContext || !storyData) return;
     const canvas = canvasEl;
+    const glowCanvas = glowCanvasEl;
     const ctx = context;
+    const glowCtx = glowContext;
     const network: StoryNetwork = storyData;
 
     let frame = 0;
@@ -98,16 +108,26 @@ export function StoryNetworkCanvas() {
       const target = nodeById.get(edge.target);
       if (!source || !target) continue;
       const active = highlighted.has(edge.source) || highlighted.has(edge.target);
+      const selected = selectedStoryIds.has(edge.source) || selectedStoryIds.has(edge.target);
       const include = isOverview
-        ? edge.type === "repost" || edge.type === "repostCascade"
-        : active;
+        ? edge.type === "repost" || edge.type === "repostCascade" || selected
+        : active || selected;
       if (!include) continue;
+      const distance = Math.hypot(target.x - source.x, target.y - source.y);
+      const closeToCore = source.kind === "microblog" || target.kind === "microblog";
+      const spread = clamp((distance - 80) / 720, 0, 1);
+      const intensity = selected ? 1 : active ? (closeToCore ? 0.9 : 0.68) : 0.38;
       flowEdges.push({
         edge,
         source,
         target,
         phase: hashUnit(`${edge.source}|${edge.target}|${edge.type}`),
-        speed: 0.085 + hashUnit(`${edge.target}|${edge.source}`) * 0.05,
+        speed: (0.11 + hashUnit(`${edge.target}|${edge.source}`) * 0.075) *
+          (closeToCore ? 1.18 : 0.82) *
+          (1 - spread * 0.25),
+        delay: spread * 0.55 + hashUnit(`${edge.type}|${edge.source}`) * 0.45,
+        intensity,
+        spread,
       });
     }
 
@@ -146,7 +166,10 @@ export function StoryNetworkCanvas() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
+      glowCanvas.width = Math.floor(width * dpr);
+      glowCanvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      glowCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
     function targetView(): Viewport {
@@ -184,11 +207,18 @@ export function StoryNetworkCanvas() {
     }
 
     function draw(view: Viewport, time: number) {
+      glowCtx.clearRect(0, 0, width, height);
+      drawBackdrop(glowCtx, width, height, view, time, reduceMotion);
+      drawEdges(glowCtx, network, nodeById, highlighted, selectedStoryIds, view, project, width, height, time, reduceMotion, "glow");
+      if (!reduceMotion) drawFlow(glowCtx, flowEdges, glowHot, view, project, width, height, time, reduceMotion, true);
+      drawNodeGlow(glowCtx, network, highlighted, selectedStoryIds, glowFor, phaseById, view, project, width, height, time, reduceMotion, true);
+      drawFocusRipple(glowCtx, network, focus, highlighted, selectedStoryIds, view, project, width, height, time, reduceMotion, true);
+
       ctx.clearRect(0, 0, width, height);
-      drawBackdrop(ctx, width, height, view, time, reduceMotion);
-      drawEdges(ctx, network, nodeById, highlighted, selectedStoryIds, view, project, width, height);
-      if (!reduceMotion) drawFlow(ctx, flowEdges, glowHot, view, project, width, height, time);
+      drawEdges(ctx, network, nodeById, highlighted, selectedStoryIds, view, project, width, height, time, reduceMotion);
+      if (!reduceMotion) drawFlow(ctx, flowEdges, glowHot, view, project, width, height, time, reduceMotion);
       drawNodeGlow(ctx, network, highlighted, selectedStoryIds, glowFor, phaseById, view, project, width, height, time, reduceMotion);
+      drawFocusRipple(ctx, network, focus, highlighted, selectedStoryIds, view, project, width, height, time, reduceMotion);
       drawNodeCores(ctx, network, highlighted, selectedStoryIds, hoveredRef.current?.id ?? null, view, project, width, height);
       drawPulses(ctx, network, highlighted, selectedStoryIds, phaseById, view, project, width, height, time, reduceMotion);
       drawHoverLabels(ctx, network, selectedStoryIds, hoveredRef.current?.id ?? null, view, project, width, height);
@@ -294,20 +324,25 @@ export function StoryNetworkCanvas() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-background">
       <canvas
+        ref={glowCanvasRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 block h-full w-full opacity-75 blur-[6px] saturate-150 mix-blend-screen"
+      />
+      <canvas
         ref={canvasRef}
         aria-label="滚动驱动的 MisBot 叙事网络"
-        className="block h-full w-full cursor-crosshair"
+        className="relative z-10 block h-full w-full cursor-crosshair"
       />
       {!story && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80">
           <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
             正在加载叙事网络...
           </span>
         </div>
       )}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_52%_45%,transparent_0%,rgba(10,10,10,0.12)_46%,rgba(10,10,10,0.78)_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-background via-background/45 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-background via-background/50 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 z-20 bg-[radial-gradient(circle_at_50%_48%,transparent_0%,transparent_52%,rgba(5,5,5,0.58)_86%,rgba(5,5,5,0.9)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-28 bg-gradient-to-b from-background via-background/45 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-36 bg-gradient-to-t from-background via-background/55 to-transparent" />
     </div>
   );
 }
@@ -381,6 +416,35 @@ function drawBackdrop(
       ctx.fillRect(x, y, 1.2, 1.2);
     }
   }
+
+  const lineSpacing = 184;
+  const lineOffsetX = ((-view.centerX * view.scale * 0.22) % lineSpacing + lineSpacing) % lineSpacing;
+  const lineOffsetY = ((-view.centerY * view.scale * 0.22) % lineSpacing + lineSpacing) % lineSpacing;
+  ctx.strokeStyle = "rgba(237,237,237,0.018)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = lineOffsetX; x < width; x += lineSpacing) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+  }
+  for (let y = lineOffsetY; y < height; y += lineSpacing) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+  }
+  ctx.stroke();
+
+  const dustCount = Math.min(110, Math.floor((width * height) / 14000));
+  ctx.fillStyle = "rgba(237,237,237,0.12)";
+  for (let i = 0; i < dustCount; i += 1) {
+    const seed = hashUnit(`story-field-${i}`);
+    const drift = reduceMotion ? 0 : Math.sin(t * 0.04 + seed * Math.PI * 2) * 0.012;
+    const x = wrapUnit(seed + view.centerX * 0.000035 + drift) * width;
+    const y = wrapUnit(hashUnit(`story-depth-${i}`) + view.centerY * 0.000028 - drift) * height;
+    const alpha = 0.025 + seed * 0.06;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawBlob(
@@ -410,7 +474,14 @@ function drawEdges(
   project: (node: Pick<StoryNetworkNode, "x" | "y">, view: Viewport) => ScreenPoint,
   width: number,
   height: number,
+  time: number,
+  reduceMotion: boolean,
+  layer: "main" | "glow" = "main",
 ) {
+  const glow = layer === "glow";
+  const broadOverview = highlighted.size >= story.nodes.length * 0.6;
+  ctx.save();
+  if (glow) ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
   for (const edge of story.edges) {
     const source = nodeById.get(edge.source);
@@ -422,22 +493,49 @@ function drawEdges(
 
     const active = highlighted.has(edge.source) || highlighted.has(edge.target);
     const selected = selectedStoryIds.has(edge.source) || selectedStoryIds.has(edge.target);
-    ctx.strokeStyle = selected
-      ? "rgba(233,106,44,0.9)"
+    if (glow && !active && !selected) continue;
+
+    const dimmed = highlighted.size > 0 && !active && !selected && !broadOverview;
+    const rgb = edgeRGB(edge.type);
+    const highAlpha = selected
+      ? glow ? 0.7 : 0.88
       : active
-        ? edgeColor(edge.type, 0.46)
-        : edgeColor(edge.type, 0.1);
-    ctx.lineWidth = selected ? 1.7 : active ? 1.05 : 0.65;
+        ? glow ? 0.36 : 0.42
+        : broadOverview
+          ? glow ? 0.08 : 0.075
+          : 0.045;
+    const lowAlpha = selected
+      ? glow ? 0.14 : 0.22
+      : active
+        ? glow ? 0.07 : 0.09
+        : broadOverview
+          ? 0.018
+          : 0.01;
+    const sourceAlpha = source.kind === "microblog" || selectedStoryIds.has(edge.source)
+      ? highAlpha
+      : dimmed
+        ? lowAlpha * 0.75
+        : lowAlpha;
+    const targetAlpha = target.kind === "microblog" || selectedStoryIds.has(edge.target)
+      ? highAlpha
+      : dimmed
+        ? lowAlpha * 0.75
+        : lowAlpha;
+    const gradient = ctx.createLinearGradient(s.x, s.y, t.x, t.y);
+    gradient.addColorStop(0, rgba(rgb, sourceAlpha));
+    gradient.addColorStop(0.58, rgba(rgb, Math.max(sourceAlpha, targetAlpha) * (glow ? 0.42 : 0.34)));
+    gradient.addColorStop(1, rgba(rgb, targetAlpha));
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = glow
+      ? selected ? 5.2 : active ? 3.2 : 1.6
+      : selected ? 1.55 : active ? 0.95 : dimmed ? 0.34 : 0.5;
     ctx.beginPath();
     ctx.moveTo(s.x, s.y);
-    if (edge.c1x !== undefined && edge.c1y !== undefined) {
-      const c = project({ x: edge.c1x, y: edge.c1y }, view);
-      ctx.quadraticCurveTo(c.x, c.y, t.x, t.y);
-    } else {
-      ctx.lineTo(t.x, t.y);
-    }
+    const c = edgeControlPoint(edge, s, t, view, project, time, reduceMotion);
+    ctx.quadraticCurveTo(c.x, c.y, t.x, t.y);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 // Traveling pulses along propagation edges. Conveys diffusion and is the most
@@ -451,6 +549,8 @@ function drawFlow(
   width: number,
   height: number,
   time: number,
+  reduceMotion: boolean,
+  bloomLayer = false,
 ) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -458,21 +558,21 @@ function drawFlow(
     const s = project(flow.source, view);
     const t = project(flow.target, view);
     if (isOffscreen(s, width, height, 60) && isOffscreen(t, width, height, 60)) continue;
-    const c =
-      flow.edge.c1x !== undefined && flow.edge.c1y !== undefined
-        ? project({ x: flow.edge.c1x, y: flow.edge.c1y }, view)
-        : { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+    const c = edgeControlPoint(flow.edge, s, t, view, project, time, reduceMotion);
+    const count = flow.intensity > 0.86 && !bloomLayer ? 2 : 1;
 
-    const u = (time * flow.speed + flow.phase) % 1;
-    const inv = 1 - u;
-    const px = inv * inv * s.x + 2 * inv * u * c.x + u * u * t.x;
-    const py = inv * inv * s.y + 2 * inv * u * c.y + u * u * t.y;
+    for (let i = 0; i < count; i += 1) {
+      const u = wrapUnit(time * flow.speed - flow.delay + flow.phase + i * 0.46);
+      const inv = 1 - u;
+      const px = inv * inv * s.x + 2 * inv * u * c.x + u * u * t.x;
+      const py = inv * inv * s.y + 2 * inv * u * c.y + u * u * t.y;
 
-    // Fade in/out at the endpoints so particles emerge from and arrive at nodes.
-    const fade = Math.sin(Math.PI * u);
-    const size = 11 + fade * 7;
-    ctx.globalAlpha = 0.28 + fade * 0.55;
-    ctx.drawImage(sprite, px - size / 2, py - size / 2, size, size);
+      const fade = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 1.35);
+      const attenuation = (1 - flow.spread * 0.48) * flow.intensity;
+      const size = (bloomLayer ? 14 : 7) + fade * (bloomLayer ? 22 : 11);
+      ctx.globalAlpha = (bloomLayer ? 0.18 : 0.2) + fade * (bloomLayer ? 0.28 : 0.52) * attenuation;
+      ctx.drawImage(sprite, px - size / 2, py - size / 2, size, size);
+    }
   }
   ctx.restore();
 }
@@ -490,24 +590,31 @@ function drawNodeGlow(
   height: number,
   time: number,
   reduceMotion: boolean,
+  bloomLayer = false,
 ) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const node of story.nodes) {
     const p = project(node, view);
-    const radius = Math.max(1.8, node.r * view.scale);
-    if (isOffscreen(p, width, height, radius * 6 + 40)) continue;
-
     const active = highlighted.has(node.id);
     const selected = selectedStoryIds.has(node.id);
+    const radius = renderRadius(node, view, active, selected, false);
+    if (isOffscreen(p, width, height, radius * 6 + 40)) continue;
+
     const dimmed = highlighted.size > 0 && !active && !selected;
     if (dimmed && highlighted.size < story.nodes.length) continue;
 
     const phase = phaseById.get(node.id) ?? 0;
     const breathe = reduceMotion ? 1 : 0.8 + Math.sin(time * 1.6 + phase) * 0.2;
-    const emphasis = selected ? 3.4 : active ? 2.6 : node.kind === "microblog" ? 2.2 : 1.7;
-    const size = Math.max(10, radius * emphasis) * (0.9 + breathe * 0.25);
-    const intensity = (selected ? 0.85 : active ? 0.6 : node.label === "fake" ? 0.4 : 0.26) * breathe;
+    const emphasis = bloomLayer
+      ? selected ? 6.8 : active ? 4.6 : node.kind === "microblog" ? 3.6 : 2.4
+      : selected ? 3.4 : active ? 2.4 : node.kind === "microblog" ? 1.9 : 1.45;
+    const size = Math.max(bloomLayer ? 18 : 8, radius * emphasis) * (0.9 + breathe * 0.25);
+    const intensity = (
+      bloomLayer
+        ? selected ? 0.62 : active ? 0.4 : node.label === "fake" ? 0.2 : 0.12
+        : selected ? 0.78 : active ? 0.5 : node.label === "fake" ? 0.26 : 0.16
+    ) * breathe;
 
     ctx.globalAlpha = intensity;
     ctx.drawImage(glowFor(node), p.x - size / 2, p.y - size / 2, size, size);
@@ -528,8 +635,6 @@ function drawNodeCores(
 ) {
   for (const node of story.nodes) {
     const p = project(node, view);
-    const radius = Math.max(1.8, node.r * view.scale);
-    if (isOffscreen(p, width, height, radius + 60)) continue;
 
     const active = highlighted.has(node.id);
     const selected = selectedStoryIds.has(node.id);
@@ -537,6 +642,8 @@ function drawNodeCores(
     const dimmed = highlighted.size > 0 && !active && !selected;
     const alpha = selected ? 1 : active ? 0.95 : dimmed ? 0.2 : 0.6;
     const fill = node.label === "fake" ? COLORS.hot : node.kind === "microblog" ? COLORS.ink : COLORS.cool;
+    const radius = renderRadius(node, view, active, selected, hovered);
+    if (isOffscreen(p, width, height, radius + 60)) continue;
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -545,7 +652,7 @@ function drawNodeCores(
     ctx.lineWidth = selected || hovered ? 2 : 0.8;
 
     if (node.kind === "microblog") {
-      const size = radius * 1.7;
+      const size = radius * 2.05;
       ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
       ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
     } else {
@@ -583,7 +690,7 @@ function drawPulses(
     if (!selected && !isHub) continue;
 
     const p = project(node, view);
-    const radius = Math.max(1.8, node.r * view.scale);
+    const radius = renderRadius(node, view, isHub, selected, false);
     if (isOffscreen(p, width, height, radius * 4 + 40)) continue;
     pulsed += 1;
 
@@ -603,6 +710,66 @@ function drawPulses(
   ctx.restore();
 }
 
+function drawFocusRipple(
+  ctx: CanvasRenderingContext2D,
+  story: StoryNetwork,
+  focus: StoryFocusRegion | null,
+  highlighted: Set<string>,
+  selectedStoryIds: Set<string>,
+  view: Viewport,
+  project: (node: Pick<StoryNetworkNode, "x" | "y">, view: Viewport) => ScreenPoint,
+  width: number,
+  height: number,
+  time: number,
+  reduceMotion: boolean,
+  bloomLayer = false,
+) {
+  if (reduceMotion || time > RIPPLE_DURATION) return;
+  const nodeById = new Map(story.nodes.map((node) => [node.id, node]));
+  const selected = story.nodes.filter((node) => selectedStoryIds.has(node.id));
+  const focusNodes = (focus?.nodeIds ?? [])
+    .map((nodeId) => nodeById.get(nodeId))
+    .filter((node): node is StoryNetworkNode => !!node);
+  const anchors = (selected.length ? selected : focusNodes.filter((node) => node.kind === "microblog")).slice(0, 4);
+  const fallback: StoryNetworkNode[] = focus
+    ? [{
+        id: focus.id,
+        refId: focus.id,
+        kind: "microblog" as const,
+        x: focus.centerX,
+        y: focus.centerY,
+        r: 24,
+        cluster: focus.id,
+        weight: 1,
+      }]
+    : [];
+  const nodes = anchors.length ? anchors : fallback;
+  if (!nodes.length) return;
+
+  const cycle = clamp(time / RIPPLE_DURATION, 0, 1);
+  const eased = easeOutCubic(cycle);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const node of nodes) {
+    const p = project(node, view);
+    if (isOffscreen(p, width, height, 220)) continue;
+    const rgb = node.label === "fake" ? ([233, 106, 44] as const) : ([111, 159, 216] as const);
+    const active = highlighted.has(node.id);
+    const selectedNode = selectedStoryIds.has(node.id);
+    const baseRadius = renderRadius(node, view, active, selectedNode, false);
+    const spread = (bloomLayer ? 210 : 132) * (0.82 + hashUnit(`${node.id}:ripple`) * 0.34);
+    const ringRadius = baseRadius + eased * spread;
+    const alpha = Math.pow(1 - cycle, 2) * (bloomLayer ? 0.28 : 0.5);
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = rgba(rgb, alpha);
+    ctx.lineWidth = bloomLayer ? 7 : 1.4 + (1 - cycle) * 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawHoverLabels(
   ctx: CanvasRenderingContext2D,
   story: StoryNetwork,
@@ -618,15 +785,27 @@ function drawHoverLabels(
     const hovered = hoveredId === node.id;
     if (!selected && !hovered) continue;
     const p = project(node, view);
-    const radius = Math.max(1.8, node.r * view.scale);
+    const radius = renderRadius(node, view, selected, selected, hovered);
     if (isOffscreen(p, width, height, radius + 60)) continue;
 
     if (node.name) {
       ctx.save();
-      ctx.font = "10px var(--font-mono)";
+      ctx.font = LABEL_FONT;
+      ctx.textBaseline = "middle";
+      const text = node.name;
+      const labelX = p.x + radius + 8;
+      const labelY = p.y - radius - 4;
+      const metrics = ctx.measureText(text);
+      const boxW = metrics.width + 13;
+      const boxH = 18;
+      ctx.globalAlpha = hovered ? 0.92 : 0.76;
+      fillRoundRect(ctx, labelX - 6, labelY - boxH / 2, boxW, boxH, 4, "rgba(5,5,5,0.72)");
+      ctx.strokeStyle = hovered ? "rgba(233,106,44,0.52)" : "rgba(237,237,237,0.16)";
+      ctx.lineWidth = 1;
+      strokeRoundRect(ctx, labelX - 6, labelY - boxH / 2, boxW, boxH, 4);
+      ctx.globalAlpha = hovered ? 0.98 : 0.86;
       ctx.fillStyle = COLORS.inkSoft;
-      ctx.globalAlpha = 0.94;
-      ctx.fillText(node.name, p.x + radius + 8, p.y - radius - 3);
+      ctx.fillText(text, labelX, labelY);
       ctx.restore();
     }
   }
@@ -634,7 +813,7 @@ function drawHoverLabels(
 
 function drawRegionLabel(ctx: CanvasRenderingContext2D, label: string, rule: string, width: number, height: number) {
   ctx.save();
-  ctx.font = "10px var(--font-mono)";
+  ctx.font = LABEL_FONT;
   ctx.fillStyle = "rgba(237,237,237,0.62)";
   ctx.textBaseline = "bottom";
   ctx.fillText(storyLabelName(label), 28, height - 34);
@@ -658,18 +837,129 @@ function tooltipFor(node: StoryNetworkNode): string {
     <div class="grid grid-cols-2 gap-x-3"><span class="text-muted-foreground">簇</span><b>${escapeHTML(node.cluster)}</b></div>`;
 }
 
-function edgeColor(type: string, alpha: number) {
-  if (type === "comment" || type === "commentReply") return `rgba(111,159,216,${alpha})`;
-  if (type === "repost" || type === "repostCascade") return `rgba(233,106,44,${alpha})`;
-  return `rgba(237,237,237,${alpha})`;
-}
-
 function isOffscreen(point: ScreenPoint, width: number, height: number, margin: number) {
   return point.x < -margin || point.y < -margin || point.x > width + margin || point.y > height + margin;
 }
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
+}
+
+function edgeControlPoint(
+  edge: StoryNetworkEdge,
+  source: ScreenPoint,
+  target: ScreenPoint,
+  view: Viewport,
+  project: (node: Pick<StoryNetworkNode, "x" | "y">, view: Viewport) => ScreenPoint,
+  time: number,
+  reduceMotion: boolean,
+): ScreenPoint {
+  const control = edge.c1x !== undefined && edge.c1y !== undefined
+    ? project({ x: edge.c1x, y: edge.c1y }, view)
+    : { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
+  if (reduceMotion) return control;
+
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const nx = -dy / distance;
+  const ny = dx / distance;
+  const phase = hashUnit(`${edge.source}:${edge.target}:wind`) * Math.PI * 2;
+  const amplitude = clamp(distance * 0.018, 1.2, 8.5);
+  const wave = Math.sin(time * 0.72 + phase) * amplitude;
+  return {
+    x: control.x + nx * wave,
+    y: control.y + ny * wave,
+  };
+}
+
+function renderRadius(
+  node: Pick<StoryNetworkNode, "kind" | "r">,
+  view: Viewport,
+  active: boolean,
+  selected: boolean,
+  hovered: boolean,
+) {
+  const base = Math.max(0.2, node.r * view.scale);
+  if (node.kind === "microblog") {
+    const radius = Math.pow(base, 1.08) * 1.05 + 1.8;
+    return radius * (selected ? 1.24 : hovered ? 1.16 : active ? 1 : 0.84);
+  }
+
+  const radius = Math.pow(base, 0.76) * 0.62;
+  const min = selected || hovered ? 2.2 : active ? 1.35 : 0.85;
+  const max = selected || hovered ? 6.2 : active ? 4.4 : 2.4;
+  return clamp(radius, min, max);
+}
+
+function edgeRGB(type: string): readonly [number, number, number] {
+  if (type === "comment" || type === "commentReply") return [111, 159, 216];
+  if (type === "repost" || type === "repostCascade") return [233, 106, 44];
+  return [237, 237, 237];
+}
+
+function rgba(rgb: readonly [number, number, number], alpha: number) {
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(alpha, 0, 1).toFixed(3)})`;
+}
+
+function fillRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fillStyle: string,
+) {
+  roundRectPath(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+
+function strokeRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  roundRectPath(ctx, x, y, width, height, radius);
+  ctx.stroke();
+}
+
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function wrapUnit(value: number) {
+  return value - Math.floor(value);
+}
+
+function easeOutCubic(value: number) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function hashUnit(value: string): number {

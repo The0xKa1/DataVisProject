@@ -77,7 +77,7 @@ export function storyLabelName(label?: string | null): string {
   return mapped[label] ?? label;
 }
 
-// Total interactions count used by the orbit + actor scoring.
+// Total interactions count used by event and actor scoring.
 export function eventInteractions(e: {
   commentCount?: number;
   repostCount?: number;

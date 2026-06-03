@@ -29,10 +29,9 @@ interface DashboardState {
   activeStoryPresetId: string;
   storyViewport: StoryViewport | null;
   highlightNodeIds: string[];
-  // Scrollytelling override for OrbitScene's camera/orbit phase. When null,
-  // OrbitScene falls back to its own ScrollTrigger. When 0..1, the section
-  // director drives the phase — used while the orbit is hosted inside the
-  // pinned scrollytelling stage (which has no scroll progress of its own).
+  // Scrollytelling phase emitted by story presets. Kept as orbitPhase for
+  // generated JSON compatibility even though the active three.js surface is
+  // now PropagationSpace.
   orbitPhase: number | null;
 
   // Setters
