@@ -175,7 +175,6 @@ function buildFocusRegions(
   const coordination = data.coordination;
   const firstBurst = coordination?.burstWindows?.[0];
   const firstTemplate = coordination?.templateSignals?.[0];
-  const firstShard = coordination?.caseGraphs?.[0];
   const fakeNodes = nodes.filter((node) => node.label === "fake");
   const eventNodes = nodes.filter((node) => node.eventId);
   const overviewIds = nodes.map((node) => node.id);
@@ -191,7 +190,12 @@ function buildFocusRegions(
   const ringleaderEventIds = ringleaderIds
     .map((id) => nodes.find((node) => node.id === id)?.eventId)
     .filter((id): id is string => !!id);
+  const eventsById = Object.fromEntries((data.events ?? []).map((e) => [e.id, e]));
+  const burstFakeEventId = firstBurst?.eventIds.find(
+    (eventId) => eventNodeIds.has(eventId) && eventsById[eventId]?.label === "fake",
+  );
   const selectedEvidenceId =
+    burstFakeEventId ??
     firstBurst?.eventIds.find((eventId) => eventNodeIds.has(eventId)) ??
     fakeNodes.find((node) => node.eventId)?.eventId ??
     eventNodes[0]?.eventId;
@@ -199,9 +203,14 @@ function buildFocusRegions(
   const selectedNeighbors = selectedEvidenceNode
     ? neighborNodeIds(selectedEvidenceNode, edges)
     : [];
-  const firstClusterIds = firstShard
-    ? clusterNodeIds.get("cluster-1") ?? []
-    : clusterNodeIds.values().next().value ?? [];
+
+  // Anchor propagation-core on the cluster containing the burst fake event
+  // (Prada fire, 160 nodes) instead of the first case graph (real, 5 nodes).
+  const anchorEventNode = selectedEvidenceNode
+    ? nodes.find((n) => n.id === selectedEvidenceNode)
+    : undefined;
+  const anchorClusterId = anchorEventNode?.cluster ?? "cluster-1";
+  const firstClusterIds = clusterNodeIds.get(anchorClusterId) ?? [];
   const botHeavyIds = nodes
     .filter((node) => (node.botShare ?? 0) >= 0.25 || (node.kind === "actor" && (node.fakeShare ?? 0) >= 0.5))
     .map((node) => node.id);
@@ -217,7 +226,7 @@ function buildFocusRegions(
       scale: 0.82,
       labelFilter: "all",
       orbitPhase: 0,
-      summary: "叙事从完整审计投影打开。",
+      summary: "2023 年夏季虚假信息浪潮全景。",
     }),
     focusFromNodes({
       id: "fake-burst",
@@ -229,22 +238,22 @@ function buildFocusRegions(
       scale: 1.35,
       labelFilter: "fake",
       dateRange: firstBurst ? dateRangeFromMonths(firstBurst.startMonth, firstBurst.endMonth) : undefined,
-      selectedEventId: firstBurst?.eventIds.find((eventId) => eventNodeIds.has(eventId)),
+      selectedEventId: burstFakeEventId ?? firstBurst?.eventIds.find((eventId) => eventNodeIds.has(eventId)),
       orbitPhase: 0.25,
-      summary: "第一段跳转隔离虚假信息占比最高的突发窗口。",
+      summary: "2023 年虚假信息浪潮达到峰值。",
     }),
     focusFromNodes({
       id: "propagation-core",
       label: "扩散核心",
       nodeIds: firstClusterIds.length ? firstClusterIds : overviewIds,
-      eventIds: firstShard?.eventId ? [firstShard.eventId] : [],
+      eventIds: selectedEvidenceId ? [selectedEvidenceId] : [],
       bounds,
       nodes,
       scale: 1.75,
       labelFilter: "fake",
-      selectedEventId: firstShard?.eventId,
+      selectedEventId: selectedEvidenceId,
       orbitPhase: 0.42,
-      summary: "镜头进入一条转发/评论级联。",
+      summary: "Prada 火灾谣言的传播拓扑：转发为主，缺乏质疑。",
     }),
     focusFromNodes({
       id: "template-cluster",
@@ -258,7 +267,7 @@ function buildFocusRegions(
       search: firstTemplate?.text ?? "",
       selectedEventId: firstTemplate?.eventIds.find((eventId) => eventNodeIds.has(eventId)),
       orbitPhase: 0.58,
-      summary: "重复话术被纳入空间焦点，而不是单独陈列。",
+      summary: "协调放水的话术模板在同一时期集中出现。",
     }),
     focusFromNodes({
       id: "ringleader-hunt",
@@ -273,7 +282,7 @@ function buildFocusRegions(
       selectedEventId: ringleaderEventIds[0],
       selectedActorId: ringleaderNode?.refId,
       orbitPhase: 0.68,
-      summary: "从水军代理分数、虚假参与占比与一跳邻域锁定疑似放大者。",
+      summary: "高水军评分、高虚假参与比的账号构成谣言引擎。",
     }),
     focusFromNodes({
       id: "bot-heavy",
@@ -290,7 +299,7 @@ function buildFocusRegions(
       dateRange: firstBurst ? dateRangeFromMonths(firstBurst.startMonth, firstBurst.endMonth) : undefined,
       selectedEventId: selectedEvidenceId,
       orbitPhase: 0.72,
-      summary: "高水军代理参与被高亮，但不会被转化为定罪判断。",
+      summary: "大量高 botScore 账号集中活动，但弱监督标签不是判决。",
     }),
     focusFromNodes({
       id: "evidence-focus",
@@ -304,7 +313,7 @@ function buildFocusRegions(
       botHeavy: true,
       selectedEventId: selectedEvidenceId,
       orbitPhase: 0.92,
-      summary: "最后一步落到一条匿名微博及其局部邻域。",
+      summary: "Prada 火灾谣言的原始文本与传播数据。",
     }),
     focusFromNodes({
       id: "limits",
@@ -316,7 +325,7 @@ function buildFocusRegions(
       scale: 0.95,
       labelFilter: "all",
       orbitPhase: 1,
-      summary: "叙事拉远，提醒分析者拓扑只是证据，不是裁决。",
+      summary: "审计系统呈现可追溯的证据链，最终判断由人完成。",
     }),
   ];
 }
