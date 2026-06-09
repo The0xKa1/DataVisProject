@@ -126,8 +126,16 @@ npm run build && npm start
 
 1. Review the background-network story at `http://localhost:3000/#case-study`.
 2. Review the full-coverage analyst console at `http://localhost:3000/#analyst-console`.
-3. Tune the final case-study narrative around the strongest burst/hub/template combination.
-4. Confirm team responsibilities and presentation ownership.
+3. Confirm team responsibilities and presentation ownership.
+
+## Completion Notes
+
+### Scrollytelling narrative rewrite with restored MisBot data (2026-06-08)
+
+- Restored full MisBot dashboard (23,622 events, 18 burst windows, 120 template signals, 80 hub actors) from git commit `a721cba^` — the generated artifact was previously tracked before `public/data/` was gitignored.
+- Replaced all 8 scrollytelling card texts from generic "system feature tour" to a data-driven narrative anchored on the **Prada Rong Residence fire rumor** (event `b596cd8d`, July 2023), the peak burst in the 2023 summer disinformation campaign.
+- Updated `buildFocusRegions` in `story-network.ts` to select fake burst events as the primary evidence anchor, and to point `propagation-core` at the Prada fire cluster (cluster-2, 160 nodes) instead of the first case graph's real event (cluster-1, 5 nodes).
+- Pushed to branch `feat/scrollytelling-narrative` for review.
 
 ## Completion Notes
 
